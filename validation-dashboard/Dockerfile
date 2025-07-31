@@ -4,15 +4,17 @@ FROM node:20 AS build
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and npm config
 COPY package*.json ./
+COPY .npmrc ./
 
 # Install dependencies
-RUN npm ci --omit=dev
+RUN npm install --production
 
 # Copy source code
 COPY public/ ./public/
 COPY src/ ./src/
+COPY vite.config.js ./
 
 # Build the application
 RUN npm run build
