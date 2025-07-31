@@ -23,11 +23,10 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY src/ ./src/
-COPY upload/ ./upload/
-
-# Create necessary directories
+    # Copy application code
+    COPY src/ ./src/
+    
+    # Create necessary directories
 RUN mkdir -p /app/data /app/logs /app/exports
 
 # Set permissions
