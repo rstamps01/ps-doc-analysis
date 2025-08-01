@@ -3,6 +3,8 @@
 services:
   # Backend API Service
   backend:
+    env_file:
+      - .env
     build:
       context: ./validation_tool
       dockerfile: Dockerfile
@@ -30,6 +32,8 @@ services:
 
   # Frontend Web Service
   frontend:
+    env_file:
+      - ./validation-dashboard/.env
     build:
       context: ./validation-dashboard
       dockerfile: Dockerfile
