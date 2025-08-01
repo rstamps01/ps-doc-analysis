@@ -6,6 +6,9 @@ from flask import Blueprint, request, jsonify
 import logging
 from datetime import datetime
 
+google_integration = Blueprint('google_integration', __name__)
+logger = logging.getLogger(__name__)
+
 # Fix imports for standalone execution
 import os
 import sys
@@ -33,9 +36,6 @@ except ImportError as e:
         def __init__(self): pass
         def validate_site_survey_part1(self, spreadsheet_id): return {'status': 'error', 'message': 'Module not available'}
         def validate_site_survey_part2(self, spreadsheet_id): return {'status': 'error', 'message': 'Module not available'}
-
-google_integration = Blueprint('google_integration', __name__)
-logger = logging.getLogger(__name__)
 
 @google_integration.route('/api/google/test-connection', methods=['GET'])
 def test_google_connections():
