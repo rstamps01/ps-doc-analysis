@@ -377,85 +377,153 @@ def upload_credentials():
         return response
     
     try:
+        logger.info("=== CREDENTIALS UPLOAD DEBUG START ===")
+        logger.info(f"Request method: {request.method}")
+        logger.info(f"Request content type: {request.content_type}")
+        logger.info(f"Request files keys: {list(request.files.keys())}")
+        logger.info(f"Request form keys: {list(request.form.keys())}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        
         # Check if file was uploaded
         if 'credentials' not in request.files:
+            logger.error("No 'credentials' key found in request.files")
+            logger.error(f"Available file keys: {list(request.files.keys())}")
             return jsonify({'error': 'No credentials file uploaded'}), 400
         
         file = request.files['credentials']
+        logger.info(f"File received: filename='{file.filename}', content_type='{file.content_type}'")
+        
         if file.filename == '':
+            logger.error("File filename is empty")
             return jsonify({'error': 'No file selected'}), 400
         
         # Validate file is JSON
         if not file.filename.endswith('.json'):
+            logger.error(f"File does not end with .json: {file.filename}")
             return jsonify({'error': 'Credentials file must be a JSON file'}), 400
         
         # Read and validate JSON content
         try:
             import json
+            logger.info("Reading file content...")
             file_content = file.read().decode('utf-8')
+            logger.info(f"File content length: {len(file_content)} characters")
+            logger.info(f"File content preview: {file_content[:200]}...")
+            
+            logger.info("Parsing JSON content...")
             credentials_data = json.loads(file_content)
+            logger.info(f"JSON parsed successfully. Keys: {list(credentials_data.keys())}")
             
             # Validate required fields
             required_fields = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email', 'client_id']
             missing_fields = [field for field in required_fields if field not in credentials_data]
             
             if missing_fields:
+                logger.error(f"Missing required fields: {missing_fields}")
                 return jsonify({
                     'error': f'Invalid credentials file. Missing fields: {", ".join(missing_fields)}'
                 }), 400
             
             if credentials_data.get('type') != 'service_account':
+                logger.error(f"Invalid type: {credentials_data.get('type')}")
                 return jsonify({'error': 'Credentials file must be for a service account'}), 400
             
-        except json.JSONDecodeError:
+            logger.info("JSON validation passed")
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {str(e)}")
             return jsonify({'error': 'Invalid JSON file'}), 400
         except Exception as e:
+            logger.error(f"Error reading/parsing file: {str(e)}")
             return jsonify({'error': f'Error reading file: {str(e)}'}), 400
         
         # Save credentials file
         import os
-        credentials_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'credentials')
-        os.makedirs(credentials_dir, exist_ok=True)
+        try:
+            logger.info("Starting file save process...")
+            credentials_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'credentials'))
+            logger.info(f"Credentials directory: {credentials_dir}")
+            
+            # Ensure directory exists
+            if not os.path.exists(credentials_dir):
+                logger.info(f"Creating credentials directory: {credentials_dir}")
+                os.makedirs(credentials_dir, exist_ok=True)
+            else:
+                logger.info("Credentials directory already exists")
+            
+            # Check directory permissions
+            if not os.access(credentials_dir, os.W_OK):
+                logger.error(f"No write permission to directory: {credentials_dir}")
+                return jsonify({'error': 'Cannot write to credentials directory'}), 500
+            
+            credentials_path = os.path.join(credentials_dir, 'google-service-account.json')
+            logger.info(f"Saving credentials to: {credentials_path}")
+            
+            # Write the file
+            with open(credentials_path, 'w') as f:
+                json.dump(credentials_data, f, indent=2)
+            
+            # Set restrictive permissions
+            os.chmod(credentials_path, 0o600)
+            logger.info("Credentials file saved successfully with restricted permissions")
+            
+            # Verify file was written
+            if os.path.exists(credentials_path):
+                file_size = os.path.getsize(credentials_path)
+                logger.info(f"File verification: exists=True, size={file_size} bytes")
+            else:
+                logger.error("File verification failed: file does not exist after writing")
+                return jsonify({'error': 'Failed to save credentials file'}), 500
+            
+        except PermissionError as e:
+            logger.error(f"Permission error saving file: {str(e)}")
+            return jsonify({'error': 'Permission denied when saving credentials'}), 500
+        except Exception as e:
+            logger.error(f"Error saving credentials file: {str(e)}")
+            return jsonify({'error': f'Failed to save credentials: {str(e)}'}), 500
         
-        credentials_path = os.path.join(credentials_dir, 'google-service-account.json')
-        
-        with open(credentials_path, 'w') as f:
-            f.write(file_content)
-        
-        # Update environment variable
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
-        
-        # Test the new credentials
-        test_results = {
-            'google_drive': False,
-            'google_sheets': False
-        }
+        # Test the credentials
+        logger.info("Testing credentials with Google APIs...")
+        test_results = {}
         
         try:
-            drive_integration = GoogleDriveIntegration()
+            from integrations.google_drive import GoogleDriveIntegration
+            drive_integration = GoogleDriveIntegration(credentials_path=credentials_path)
             test_results['google_drive'] = drive_integration.test_connection()
+            logger.info("Google Drive test completed")
         except Exception as e:
             logger.warning(f"Google Drive test failed with new credentials: {e}")
+            test_results['google_drive'] = {'success': False, 'error': str(e)}
         
         try:
-            sheets_integration = GoogleSheetsIntegration()
+            from integrations.google_sheets import GoogleSheetsIntegration
+            sheets_integration = GoogleSheetsIntegration(credentials_path=credentials_path)
             test_results['google_sheets'] = sheets_integration.test_connection()
+            logger.info("Google Sheets test completed")
         except Exception as e:
             logger.warning(f"Google Sheets test failed with new credentials: {e}")
+            test_results['google_sheets'] = {'success': False, 'error': str(e)}
         
-        return jsonify({
-            'success': True,
+        logger.info("=== CREDENTIALS UPLOAD DEBUG END ===")
+        logger.info("Credentials upload successful!")
+        
+        response = jsonify({
             'message': 'Credentials uploaded successfully',
             'project_id': credentials_data.get('project_id'),
             'client_email': credentials_data.get('client_email'),
-            'test_results': test_results,
-            'timestamp': datetime.now().isoformat()
+            'test_results': test_results
         })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
         
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': f'Error uploading credentials: {str(e)}',
-            'timestamp': datetime.now().isoformat()
-        }), 500
+        logger.error(f"=== CREDENTIALS UPLOAD FAILED ===")
+        logger.error(f"Unexpected error in upload_credentials: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        response = jsonify({'error': f'Upload failed: {str(e)}'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
