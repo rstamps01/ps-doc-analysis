@@ -20,6 +20,7 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./exports:/app/exports
+      - ./uploads:/app/uploads
     networks:
       - validation-network
     restart: unless-stopped
