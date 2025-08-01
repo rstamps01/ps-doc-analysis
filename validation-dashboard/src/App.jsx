@@ -112,26 +112,35 @@ function App() {
         const data = await response.json();
         console.log('Dashboard data received:', data);
         
-        // Parse the actual API response structure
-        const apiData = data.data;
-        setDashboardStats({
-          totalValidations: apiData.system_metrics.total_validations.value,
-          successRate: apiData.system_metrics.success_rate.value,
-          avgProcessingTime: apiData.system_metrics.avg_processing_time.value,
-          activeRuns: apiData.system_metrics.active_projects.value
-        });
-        
-        setValidationResults({
-          overallScore: apiData.overall_score,
-          passed: apiData.passed_checks,
-          failed: apiData.failed_checks,
-          warnings: apiData.warning_checks,
-          categories: Object.entries(apiData.categories).map(([name, data]) => ({
-            name: name,
-            score: data.score,
-            status: data.status === 'pass' ? 'passed' : data.status === 'warning' ? 'warning' : 'failed'
-          }))
-        });
+        // Parse the actual API response structure with null checks
+        if (data && data.data) {
+          const apiData = data.data;
+          
+          // Safely extract system metrics
+          const systemMetrics = apiData.system_metrics || {};
+          setDashboardStats({
+            totalValidations: systemMetrics.total_validations?.value || 0,
+            successRate: systemMetrics.success_rate?.value || 0,
+            avgProcessingTime: systemMetrics.avg_processing_time?.value || 0,
+            activeRuns: systemMetrics.active_projects?.value || 0
+          });
+          
+          // Safely extract validation results
+          setValidationResults({
+            overallScore: apiData.overall_score || 0,
+            passed: apiData.passed_checks || 0,
+            failed: apiData.failed_checks || 0,
+            warnings: apiData.warning_checks || 0,
+            categories: apiData.categories ? Object.entries(apiData.categories).map(([name, data]) => ({
+              name: name,
+              score: data?.score || 0,
+              status: data?.status === 'pass' ? 'passed' : data?.status === 'warning' ? 'warning' : 'failed'
+            })) : []
+          });
+        } else {
+          console.warn('Invalid API response structure, using fallback data');
+          throw new Error('Invalid API response structure');
+        }
       } else {
         console.warn('Dashboard API failed, using fallback data. Status:', response.status);
         // Fallback to demo data if API fails
