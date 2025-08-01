@@ -73,7 +73,7 @@ class TrendingEngine:
         conn.close()
     
     def analyze_validation_trends(self, days: int = 30) -> Dict[str, Any]:
-        """Analyze validation trends over specified time period"""
+        """Analyze validation trends over specified time period using actual database structure"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
@@ -81,27 +81,40 @@ class TrendingEngine:
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
         
-        # Get validation results within date range
+        # Get validation runs within date range (using actual table structure)
         cursor.execute('''
-            SELECT * FROM validation_results 
-            WHERE created_at >= ? AND created_at <= ?
-            ORDER BY created_at
+            SELECT id, timestamp, overall_score, status, execution_time
+            FROM validation_runs 
+            WHERE timestamp >= ? AND timestamp <= ?
+            ORDER BY timestamp
         ''', (start_date.isoformat(), end_date.isoformat()))
         
-        results = cursor.fetchall()
-        conn.close()
+        runs = cursor.fetchall()
         
-        if not results:
+        if not runs:
+            conn.close()
             return self._empty_trends_response()
         
-        # Analyze trends
+        # Get detailed validation results for these runs
+        run_ids = [run[0] for run in runs]
+        placeholders = ','.join(['?' for _ in run_ids])
+        cursor.execute(f'''
+            SELECT run_id, category, status, score, message
+            FROM validation_results 
+            WHERE run_id IN ({placeholders})
+        ''', run_ids)
+        
+        detailed_results = cursor.fetchall()
+        conn.close()
+        
+        # Analyze trends using actual data
         trends = {
-            'overview': self._analyze_overview_trends(results),
-            'category_trends': self._analyze_category_trends(results),
-            'failure_patterns': self._analyze_failure_patterns(results),
-            'performance_metrics': self._analyze_performance_metrics(results),
-            'improvement_trends': self._analyze_improvement_trends(results),
-            'recommendations': self._generate_trend_recommendations(results)
+            'overview': self._analyze_overview_trends_real(runs),
+            'category_trends': self._analyze_category_trends_real(detailed_results),
+            'failure_patterns': self._analyze_failure_patterns_real(detailed_results),
+            'performance_metrics': self._analyze_performance_metrics_real(runs),
+            'improvement_trends': self._analyze_improvement_trends_real(runs),
+            'recommendations': self._generate_trend_recommendations_real(runs, detailed_results)
         }
         
         return trends
@@ -527,4 +540,245 @@ class TrendingEngine:
         summary['action_items'] = [action['title'] for action in high_priority_actions[:3]]
         
         return summary
+
+
+    def _analyze_overview_trends_real(self, runs: List) -> Dict[str, Any]:
+        """Analyze overall validation trends using real data"""
+        if not runs:
+            return {}
+        
+        scores = [run[2] for run in runs if run[2] is not None]
+        processing_times = [run[4] for run in runs if run[4] is not None]
+        
+        # Calculate daily counts
+        daily_counts = defaultdict(int)
+        for run in runs:
+            date_str = run[1][:10] if run[1] else datetime.now().strftime('%Y-%m-%d')
+            daily_counts[date_str] += 1
+        
+        # Calculate score distribution
+        score_distribution = {'0-20': 0, '21-40': 0, '41-60': 0, '61-80': 0, '81-100': 0}
+        for score in scores:
+            if score <= 20:
+                score_distribution['0-20'] += 1
+            elif score <= 40:
+                score_distribution['21-40'] += 1
+            elif score <= 60:
+                score_distribution['41-60'] += 1
+            elif score <= 80:
+                score_distribution['61-80'] += 1
+            else:
+                score_distribution['81-100'] += 1
+        
+        # Determine score trend
+        if len(scores) >= 4:
+            mid_point = len(scores) // 2
+            first_half = scores[:mid_point]
+            second_half = scores[mid_point:]
+            first_avg = sum(first_half) / len(first_half)
+            second_avg = sum(second_half) / len(second_half)
+            
+            if second_avg > first_avg + 5:
+                score_trend = 'increasing'
+            elif second_avg < first_avg - 5:
+                score_trend = 'decreasing'
+            else:
+                score_trend = 'stable'
+        else:
+            score_trend = 'insufficient_data'
+        
+        return {
+            'total_validations': len(runs),
+            'average_score': round(sum(scores) / len(scores), 1) if scores else 0.0,
+            'score_distribution': score_distribution,
+            'daily_validation_counts': dict(daily_counts),
+            'score_trend': score_trend,
+            'average_processing_time': round(sum(processing_times) / len(processing_times), 2) if processing_times else 0.0
+        }
+    
+    def _analyze_category_trends_real(self, detailed_results: List) -> Dict[str, Any]:
+        """Analyze category trends using real data"""
+        category_data = defaultdict(lambda: {'scores': [], 'statuses': []})
+        
+        for result in detailed_results:
+            run_id, category, status, score, message = result
+            if category and score is not None:
+                category_data[category]['scores'].append(score)
+                category_data[category]['statuses'].append(status)
+        
+        category_trends = {}
+        for category, data in category_data.items():
+            scores = data['scores']
+            statuses = data['statuses']
+            
+            if scores:
+                avg_score = sum(scores) / len(scores)
+                pass_count = sum(1 for s in statuses if s == 'pass')
+                pass_rate = (pass_count / len(statuses)) * 100 if statuses else 0
+                
+                # Determine trend
+                if len(scores) >= 2:
+                    recent_avg = sum(scores[-2:]) / 2
+                    older_avg = sum(scores[:-2]) / max(1, len(scores) - 2)
+                    trend = 'increasing' if recent_avg > older_avg + 2 else ('decreasing' if recent_avg < older_avg - 2 else 'stable')
+                else:
+                    trend = 'insufficient_data'
+                
+                category_trends[category] = {
+                    'average_score': round(avg_score, 1),
+                    'pass_rate': round(pass_rate, 1),
+                    'score_trend': trend,
+                    'total_checks': len(scores)
+                }
+        
+        return category_trends
+    
+    def _analyze_failure_patterns_real(self, detailed_results: List) -> Dict[str, Any]:
+        """Analyze failure patterns using real data"""
+        failure_counts = defaultdict(int)
+        failure_messages = defaultdict(list)
+        
+        for result in detailed_results:
+            run_id, category, status, score, message = result
+            if status in ['fail', 'warning'] and message:
+                failure_counts[message] += 1
+                failure_messages[category].append(message)
+        
+        # Get most common failures
+        most_common_failures = sorted(failure_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        # Get failure rate by category
+        category_failure_rates = {}
+        for category, messages in failure_messages.items():
+            total_for_category = len([r for r in detailed_results if r[1] == category])
+            failure_rate = (len(messages) / total_for_category) * 100 if total_for_category > 0 else 0
+            category_failure_rates[category] = round(failure_rate, 1)
+        
+        return {
+            'most_common_failures': [{'failure': f[0], 'count': f[1]} for f in most_common_failures],
+            'category_failure_rates': category_failure_rates,
+            'total_failures': sum(failure_counts.values())
+        }
+    
+    def _analyze_performance_metrics_real(self, runs: List) -> Dict[str, Any]:
+        """Analyze performance metrics using real data"""
+        if not runs:
+            return {}
+        
+        scores = [run[2] for run in runs if run[2] is not None]
+        processing_times = [run[4] for run in runs if run[4] is not None]
+        statuses = [run[3] for run in runs if run[3]]
+        
+        success_count = sum(1 for s in statuses if s == 'completed')
+        success_rate = (success_count / len(statuses)) * 100 if statuses else 0
+        
+        # Calculate processing time trend
+        if len(processing_times) >= 4:
+            mid_point = len(processing_times) // 2
+            first_half_avg = sum(processing_times[:mid_point]) / mid_point
+            second_half_avg = sum(processing_times[mid_point:]) / (len(processing_times) - mid_point)
+            
+            if second_half_avg > first_half_avg + 0.5:
+                time_trend = 'increasing'
+            elif second_half_avg < first_half_avg - 0.5:
+                time_trend = 'decreasing'
+            else:
+                time_trend = 'stable'
+        else:
+            time_trend = 'insufficient_data'
+        
+        return {
+            'success_rate': round(success_rate, 1),
+            'average_processing_time': round(sum(processing_times) / len(processing_times), 2) if processing_times else 0.0,
+            'processing_time_trend': time_trend,
+            'total_runs': len(runs)
+        }
+    
+    def _analyze_improvement_trends_real(self, runs: List) -> Dict[str, Any]:
+        """Analyze improvement trends using real data"""
+        if len(runs) < 2:
+            return {'trend': 'insufficient_data', 'improvement_rate': 0.0}
+        
+        scores = [run[2] for run in runs if run[2] is not None]
+        
+        if len(scores) < 2:
+            return {'trend': 'insufficient_data', 'improvement_rate': 0.0}
+        
+        # Calculate improvement rate (change from first to last)
+        first_score = scores[0]
+        last_score = scores[-1]
+        improvement_rate = ((last_score - first_score) / first_score) * 100 if first_score > 0 else 0
+        
+        # Determine overall trend
+        if improvement_rate > 5:
+            trend = 'improving'
+        elif improvement_rate < -5:
+            trend = 'declining'
+        else:
+            trend = 'stable'
+        
+        return {
+            'trend': trend,
+            'improvement_rate': round(improvement_rate, 1),
+            'first_score': round(first_score, 1),
+            'last_score': round(last_score, 1)
+        }
+    
+    def _generate_trend_recommendations_real(self, runs: List, detailed_results: List) -> List[Dict[str, Any]]:
+        """Generate recommendations based on real data analysis"""
+        recommendations = []
+        
+        if not runs:
+            return [{'title': 'No Data Available', 'priority': 'info', 'description': 'No validation data to analyze'}]
+        
+        scores = [run[2] for run in runs if run[2] is not None]
+        avg_score = sum(scores) / len(scores) if scores else 0
+        
+        # Score-based recommendations
+        if avg_score < 70:
+            recommendations.append({
+                'title': 'Improve Overall Validation Scores',
+                'priority': 'high',
+                'description': f'Average score is {avg_score:.1f}%. Focus on addressing common validation failures.'
+            })
+        elif avg_score < 85:
+            recommendations.append({
+                'title': 'Good Performance - Minor Improvements Needed',
+                'priority': 'medium',
+                'description': f'Average score is {avg_score:.1f}%. Address remaining issues for excellence.'
+            })
+        
+        # Category-specific recommendations
+        category_data = defaultdict(list)
+        for result in detailed_results:
+            if result[3] and result[3] in ['fail', 'warning']:
+                category_data[result[1]].append(result)
+        
+        for category, failures in category_data.items():
+            if len(failures) > 2:  # More than 2 failures in this category
+                recommendations.append({
+                    'title': f'Focus on {category.replace("_", " ").title()}',
+                    'priority': 'medium',
+                    'description': f'{len(failures)} issues found in {category}. Review and improve this area.'
+                })
+        
+        # Processing time recommendations
+        processing_times = [run[4] for run in runs if run[4] is not None]
+        if processing_times:
+            avg_time = sum(processing_times) / len(processing_times)
+            if avg_time > 10:  # More than 10 seconds average
+                recommendations.append({
+                    'title': 'Optimize Processing Performance',
+                    'priority': 'low',
+                    'description': f'Average processing time is {avg_time:.1f}s. Consider optimization.'
+                })
+        
+        if not recommendations:
+            recommendations.append({
+                'title': 'Excellent Performance',
+                'priority': 'low',
+                'description': 'Validation performance is excellent. Continue current practices.'
+            })
+        
+        return recommendations[:5]  # Return top 5 recommendations
 

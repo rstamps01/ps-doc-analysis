@@ -335,68 +335,307 @@ def export_health():
 
 # Helper functions
 def get_validation_data(validation_id: str) -> Dict[str, Any]:
-    """Get validation data from database"""
+    """Get validation data from database using actual database structure"""
     try:
         conn = sqlite3.connect('src/validation_results.db')
         cursor = conn.cursor()
         
+        # Get validation run data
         cursor.execute('''
-            SELECT * FROM validation_results WHERE id = ?
+            SELECT id, timestamp, document_urls, validation_config, overall_score, 
+                   status, error_message, execution_time, user_id, project_name
+            FROM validation_runs WHERE id = ?
         ''', (validation_id,))
         
-        result = cursor.fetchone()
+        run_result = cursor.fetchone()
+        
+        if not run_result:
+            conn.close()
+            return None
+        
+        # Get detailed validation results for this run
+        cursor.execute('''
+            SELECT category, check_id, check_name, status, score, message, details
+            FROM validation_results WHERE run_id = ?
+        ''', (validation_id,))
+        
+        results = cursor.fetchall()
         conn.close()
         
-        if result:
-            # Parse the stored JSON data
-            validation_data = json.loads(result[3]) if result[3] else {}
+        # Parse the run data
+        run_data = {
+            'validation_id': run_result[0],
+            'timestamp': run_result[1],
+            'document_urls': json.loads(run_result[2]) if run_result[2] else {},
+            'validation_config': json.loads(run_result[3]) if run_result[3] else {},
+            'overall_score': run_result[4] or 0.0,
+            'status': run_result[5] or 'unknown',
+            'error_message': run_result[6],
+            'execution_time': run_result[7] or 0.0,
+            'user_id': run_result[8],
+            'project_name': run_result[9]
+        }
+        
+        # Process detailed results by category
+        category_results = {}
+        total_checks = len(results)
+        passed_checks = 0
+        failed_checks = 0
+        warning_checks = 0
+        issues = []
+        
+        for result in results:
+            category, check_id, check_name, status, score, message, details = result
             
-            # Add metadata
-            validation_data.update({
-                'validation_id': result[0],
-                'document_urls': json.loads(result[1]) if result[1] else {},
-                'configuration': json.loads(result[2]) if result[2] else {},
-                'created_at': result[5]
+            # Count status types
+            if status == 'pass':
+                passed_checks += 1
+            elif status == 'fail':
+                failed_checks += 1
+            elif status == 'warning':
+                warning_checks += 1
+            
+            # Group by category
+            if category not in category_results:
+                category_results[category] = {
+                    'scores': [],
+                    'statuses': [],
+                    'issues': [],
+                    'checks': []
+                }
+            
+            category_results[category]['scores'].append(score or 0.0)
+            category_results[category]['statuses'].append(status)
+            category_results[category]['checks'].append({
+                'check_id': check_id,
+                'check_name': check_name,
+                'status': status,
+                'score': score,
+                'message': message
             })
             
-            return validation_data
+            # Add to issues if not passing
+            if status in ['fail', 'warning'] and message:
+                issues.append({
+                    'category': category,
+                    'severity': 'high' if status == 'fail' else 'warning',
+                    'description': message,
+                    'check_name': check_name,
+                    'recommendation': f'Review and fix {check_name}'
+                })
         
-        return None
+        # Calculate category averages
+        final_categories = {}
+        for category, data in category_results.items():
+            avg_score = sum(data['scores']) / len(data['scores']) if data['scores'] else 0
+            pass_count = sum(1 for s in data['statuses'] if s == 'pass')
+            pass_rate = (pass_count / len(data['statuses'])) * 100 if data['statuses'] else 0
+            
+            final_categories[category] = {
+                'score': round(avg_score, 1),
+                'pass_rate': round(pass_rate, 1),
+                'status': 'pass' if pass_rate >= 80 else ('warning' if pass_rate >= 60 else 'fail'),
+                'issues': [issue for issue in issues if issue['category'] == category],
+                'checks': data['checks']
+            }
+        
+        # Generate recommendations based on issues
+        recommendations = []
+        if failed_checks > 0:
+            recommendations.append({
+                'title': 'Address Failed Checks',
+                'priority': 'high',
+                'description': f'Fix {failed_checks} failed validation checks'
+            })
+        if warning_checks > 0:
+            recommendations.append({
+                'title': 'Review Warnings',
+                'priority': 'medium', 
+                'description': f'Review {warning_checks} warning items'
+            })
+        
+        # Combine all data
+        validation_data = run_data.copy()
+        validation_data.update({
+            'total_checks': total_checks,
+            'passed_checks': passed_checks,
+            'failed_checks': failed_checks,
+            'warning_checks': warning_checks,
+            'category_results': final_categories,
+            'issues': issues,
+            'recommendations': recommendations,
+            'created_at': run_data['timestamp'],
+            'processing_time': run_data['execution_time']
+        })
+        
+        return validation_data
         
     except Exception as e:
         print(f"Error getting validation data: {e}")
         return None
 
 def get_trends_data(days: int) -> Dict[str, Any]:
-    """Get trends data for export (placeholder)"""
-    # This would normally use the TrendingEngine
-    return {
-        'period_days': days,
-        'overview': {
-            'total_validations': 25,
-            'average_score': 82.5,
-            'score_trend': 'increasing'
-        },
-        'category_trends': {
-            'document_completeness': {
-                'average_score': 85.0,
-                'pass_rate': 90.0,
-                'score_trend': 'stable'
-            },
-            'technical_validation': {
-                'average_score': 78.0,
-                'pass_rate': 85.0,
-                'score_trend': 'increasing'
+    """Get trends data for export from actual database"""
+    try:
+        conn = sqlite3.connect('src/validation_results.db')
+        cursor = conn.cursor()
+        
+        # Calculate date range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        
+        # Get validation runs in the date range
+        cursor.execute('''
+            SELECT id, timestamp, overall_score, status, execution_time
+            FROM validation_runs 
+            WHERE timestamp >= ? AND timestamp <= ?
+            ORDER BY timestamp DESC
+        ''', (start_date.isoformat(), end_date.isoformat()))
+        
+        runs = cursor.fetchall()
+        
+        if not runs:
+            conn.close()
+            return {
+                'period_days': days,
+                'overview': {
+                    'total_validations': 0,
+                    'average_score': 0.0,
+                    'score_trend': 'no_data'
+                },
+                'category_trends': {},
+                'recommendations': [
+                    {
+                        'title': 'No Data Available',
+                        'priority': 'info',
+                        'description': 'No validation data found for the specified period'
+                    }
+                ]
             }
-        },
-        'recommendations': [
-            {
-                'title': 'Improve Document Completeness',
+        
+        # Calculate overview metrics
+        total_validations = len(runs)
+        scores = [run[2] for run in runs if run[2] is not None]
+        average_score = sum(scores) / len(scores) if scores else 0.0
+        
+        # Determine score trend (simple comparison of first half vs second half)
+        if len(scores) >= 4:
+            mid_point = len(scores) // 2
+            first_half_avg = sum(scores[:mid_point]) / mid_point
+            second_half_avg = sum(scores[mid_point:]) / (len(scores) - mid_point)
+            
+            if second_half_avg > first_half_avg + 5:
+                score_trend = 'increasing'
+            elif second_half_avg < first_half_avg - 5:
+                score_trend = 'decreasing'
+            else:
+                score_trend = 'stable'
+        else:
+            score_trend = 'insufficient_data'
+        
+        # Get category trends
+        category_trends = {}
+        for run_id, _, _, _, _ in runs:
+            cursor.execute('''
+                SELECT category, AVG(score) as avg_score, 
+                       COUNT(CASE WHEN status = 'pass' THEN 1 END) * 100.0 / COUNT(*) as pass_rate
+                FROM validation_results 
+                WHERE run_id = ?
+                GROUP BY category
+            ''', (run_id,))
+            
+            categories = cursor.fetchall()
+            for category, avg_score, pass_rate in categories:
+                if category not in category_trends:
+                    category_trends[category] = {
+                        'scores': [],
+                        'pass_rates': []
+                    }
+                category_trends[category]['scores'].append(avg_score or 0.0)
+                category_trends[category]['pass_rates'].append(pass_rate or 0.0)
+        
+        # Calculate final category trends
+        final_category_trends = {}
+        for category, data in category_trends.items():
+            avg_score = sum(data['scores']) / len(data['scores']) if data['scores'] else 0.0
+            avg_pass_rate = sum(data['pass_rates']) / len(data['pass_rates']) if data['pass_rates'] else 0.0
+            
+            # Determine trend
+            if len(data['scores']) >= 2:
+                recent_score = sum(data['scores'][-2:]) / 2
+                older_score = sum(data['scores'][:-2]) / max(1, len(data['scores']) - 2)
+                trend = 'increasing' if recent_score > older_score + 2 else ('decreasing' if recent_score < older_score - 2 else 'stable')
+            else:
+                trend = 'insufficient_data'
+            
+            final_category_trends[category] = {
+                'average_score': round(avg_score, 1),
+                'pass_rate': round(avg_pass_rate, 1),
+                'score_trend': trend
+            }
+        
+        # Generate recommendations based on data
+        recommendations = []
+        if average_score < 70:
+            recommendations.append({
+                'title': 'Improve Overall Validation Scores',
                 'priority': 'high',
-                'description': 'Focus on completing all required sections'
-            }
-        ]
-    }
+                'description': f'Average score is {average_score:.1f}%. Focus on addressing common validation failures.'
+            })
+        
+        low_performing_categories = [cat for cat, data in final_category_trends.items() if data['average_score'] < 75]
+        if low_performing_categories:
+            recommendations.append({
+                'title': 'Focus on Low-Performing Categories',
+                'priority': 'medium',
+                'description': f'Categories needing attention: {", ".join(low_performing_categories)}'
+            })
+        
+        if score_trend == 'decreasing':
+            recommendations.append({
+                'title': 'Address Declining Performance',
+                'priority': 'high',
+                'description': 'Validation scores are trending downward. Review recent changes and processes.'
+            })
+        
+        if not recommendations:
+            recommendations.append({
+                'title': 'Maintain Current Performance',
+                'priority': 'low',
+                'description': 'Validation performance is stable. Continue current practices.'
+            })
+        
+        conn.close()
+        
+        return {
+            'period_days': days,
+            'overview': {
+                'total_validations': total_validations,
+                'average_score': round(average_score, 1),
+                'score_trend': score_trend
+            },
+            'category_trends': final_category_trends,
+            'recommendations': recommendations
+        }
+        
+    except Exception as e:
+        print(f"Error getting trends data: {e}")
+        return {
+            'period_days': days,
+            'overview': {
+                'total_validations': 0,
+                'average_score': 0.0,
+                'score_trend': 'error'
+            },
+            'category_trends': {},
+            'recommendations': [
+                {
+                    'title': 'Data Retrieval Error',
+                    'priority': 'high',
+                    'description': f'Error retrieving trends data: {str(e)}'
+                }
+            ]
+        }
 
 def combine_validation_data(batch_data: list) -> Dict[str, Any]:
     """Combine multiple validation results into single dataset"""
@@ -510,168 +749,4 @@ def internal_error(error):
         'message': 'Internal export service error'
     }), 500
 
-
-@export_bp.route('/validation/pdf/demo', methods=['GET'])
-def export_demo_pdf():
-    """Export demo validation results as PDF for testing"""
-    try:
-        # Create demo validation data
-        demo_data = {
-            'validation_id': 'demo',
-            'overall_score': 85.2,
-            'total_checks': 50,
-            'passed_checks': 43,
-            'failed_checks': 3,
-            'warning_checks': 4,
-            'document_urls': {
-                'site_survey': 'https://docs.google.com/spreadsheets/d/demo_site_survey',
-                'install_plan': 'https://docs.google.com/spreadsheets/d/demo_install_plan'
-            },
-            'configuration': {
-                'pass_threshold': 80,
-                'warning_threshold': 60
-            },
-            'category_results': {
-                'document_completeness': {
-                    'score': 90.0,
-                    'status': 'pass',
-                    'issues': []
-                },
-                'technical_validation': {
-                    'score': 85.0,
-                    'status': 'pass',
-                    'issues': ['Minor formatting inconsistency in section 3']
-                },
-                'data_consistency': {
-                    'score': 78.0,
-                    'status': 'warning',
-                    'issues': ['Some cross-references need verification']
-                },
-                'compliance_check': {
-                    'score': 88.0,
-                    'status': 'pass',
-                    'issues': []
-                }
-            },
-            'issues': [
-                {
-                    'category': 'technical_validation',
-                    'severity': 'minor',
-                    'description': 'Minor formatting inconsistency in section 3',
-                    'recommendation': 'Review and standardize formatting'
-                },
-                {
-                    'category': 'data_consistency',
-                    'severity': 'warning',
-                    'description': 'Some cross-references need verification',
-                    'recommendation': 'Verify all cross-document references'
-                }
-            ],
-            'recommendations': [
-                {
-                    'title': 'Improve Data Consistency',
-                    'priority': 'medium',
-                    'description': 'Review cross-document references for accuracy'
-                },
-                {
-                    'title': 'Standardize Formatting',
-                    'priority': 'low',
-                    'description': 'Apply consistent formatting across all sections'
-                }
-            ],
-            'created_at': datetime.now().isoformat(),
-            'processing_time': 2.3
-        }
-        
-        # Generate PDF
-        pdf_bytes = export_engine.export_validation_results_pdf(demo_data)
-        
-        # Create response
-        response = make_response(pdf_bytes)
-        response.headers['Content-Type'] = 'application/pdf'
-        response.headers['Content-Disposition'] = 'attachment; filename=demo_validation_report.pdf'
-        
-        return response
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Failed to export demo PDF: {str(e)}'
-        }), 500
-
-@export_bp.route('/validation/excel/demo', methods=['GET'])
-def export_demo_excel():
-    """Export demo validation results as Excel for testing"""
-    try:
-        # Use the same demo data as PDF
-        demo_data = {
-            'validation_id': 'demo',
-            'overall_score': 85.2,
-            'total_checks': 50,
-            'passed_checks': 43,
-            'failed_checks': 3,
-            'warning_checks': 4,
-            'category_results': {
-                'document_completeness': {'score': 90.0, 'status': 'pass'},
-                'technical_validation': {'score': 85.0, 'status': 'pass'},
-                'data_consistency': {'score': 78.0, 'status': 'warning'},
-                'compliance_check': {'score': 88.0, 'status': 'pass'}
-            },
-            'created_at': datetime.now().isoformat()
-        }
-        
-        # Generate Excel
-        excel_bytes = export_engine.export_validation_results_excel(demo_data)
-        
-        # Create response
-        response = make_response(excel_bytes)
-        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        response.headers['Content-Disposition'] = 'attachment; filename=demo_validation_results.xlsx'
-        
-        return response
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Failed to export demo Excel: {str(e)}'
-        }), 500
-
-@export_bp.route('/validation/csv/demo', methods=['GET'])
-def export_demo_csv():
-    """Export demo validation results as CSV for testing"""
-    try:
-        # Get export type from query parameters
-        export_type = request.args.get('type', 'summary')
-        
-        # Create demo data
-        demo_data = {
-            'validation_id': 'demo',
-            'overall_score': 85.2,
-            'total_checks': 50,
-            'passed_checks': 43,
-            'failed_checks': 3,
-            'warning_checks': 4,
-            'category_results': {
-                'document_completeness': {'score': 90.0, 'status': 'pass'},
-                'technical_validation': {'score': 85.0, 'status': 'pass'},
-                'data_consistency': {'score': 78.0, 'status': 'warning'},
-                'compliance_check': {'score': 88.0, 'status': 'pass'}
-            }
-        }
-        
-        # Generate CSV
-        csv_content = export_engine.export_validation_results_csv(demo_data, export_type)
-        
-        # Create response
-        response = make_response(csv_content)
-        response.headers['Content-Type'] = 'text/csv'
-        response.headers['Content-Disposition'] = f'attachment; filename=demo_validation_{export_type}.csv'
-        
-        return response
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'Failed to export demo CSV: {str(e)}'
-        }), 500
 

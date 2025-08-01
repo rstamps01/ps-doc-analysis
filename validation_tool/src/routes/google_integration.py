@@ -10,9 +10,29 @@ from datetime import datetime
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from integrations.google_drive import GoogleDriveIntegration
-from integrations.google_sheets import GoogleSheetsIntegration
-from validation.google_sheets_validator import GoogleSheetsValidator
+
+try:
+    from integrations.google_drive import GoogleDriveIntegration
+    from integrations.google_sheets import GoogleSheetsIntegration
+    from validation.google_sheets_validator import GoogleSheetsValidator
+except ImportError as e:
+    # Fallback for missing modules
+    logger.warning(f"Import error: {e}. Some Google integration features may not work.")
+    
+    class GoogleDriveIntegration:
+        def __init__(self): pass
+        def test_connection(self): return False
+    
+    class GoogleSheetsIntegration:
+        def __init__(self): pass
+        def test_connection(self): return False
+        def get_sheet_metadata(self, spreadsheet_id): return {}
+        def detect_schema(self, spreadsheet_id): return {}
+    
+    class GoogleSheetsValidator:
+        def __init__(self): pass
+        def validate_site_survey_part1(self, spreadsheet_id): return {'status': 'error', 'message': 'Module not available'}
+        def validate_site_survey_part2(self, spreadsheet_id): return {'status': 'error', 'message': 'Module not available'}
 
 google_integration = Blueprint('google_integration', __name__)
 logger = logging.getLogger(__name__)
