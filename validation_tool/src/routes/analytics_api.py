@@ -280,7 +280,7 @@ def export_trends_data():
             'message': f'Failed to export trends data: {str(e)}'
         }), 500
 
-@analytics_bp.route('/health', methods=['GET'])
+@analytics_bp.route('/api/health', methods=['GET'])
 def analytics_health():
     """Health check for analytics service"""
     try:

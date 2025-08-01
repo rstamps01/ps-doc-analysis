@@ -44,7 +44,9 @@ const RealDataDashboard = ({ ...motionProps }) => {
   const [error, setError] = useState(null)
 
   // API base URL - updated to new deployed backend
-  const API_BASE = 'https://ogh5izceny33.manus.space'
+  // const API_BASE = 'https://ogh5izceny33.manus.space'
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
+
 
   const fetchRealData = async () => {
     try {

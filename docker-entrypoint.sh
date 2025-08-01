@@ -25,7 +25,7 @@ check_backend_health() {
     
     echo "🔍 Checking backend health..."
     while [ $attempt -le $max_attempts ]; do
-        if curl -f http://backend:5000/health >/dev/null 2>&1; then
+        if curl -f http://backend:5000/api/health >/dev/null 2>&1; then
             echo "✅ Backend is healthy!"
             return 0
         fi
