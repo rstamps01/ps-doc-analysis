@@ -48,7 +48,13 @@ function App() {
     serviceAccount: 'service-document-analysis@document-analysis-072925.iam.gserviceaccount.com'
   });
 
-  const [credentialsText, setCredentialsText] = useState('');
+  const [credentialsFile, setCredentialsFile] = useState(null);
+
+  // Handle file input change
+  const handleCredentialsFileChange = (event) => {
+    const file = event.target.files[0];
+    setCredentialsFile(file);
+  };
 
   // Navigation tabs
   const tabs = [
@@ -324,24 +330,34 @@ function App() {
   const saveCredentials = async () => {
     try {
       setSettingsLoading(true);
+      
+      if (!credentialsFile) {
+        alert('Please select a credentials file first.');
+        return;
+      }
+
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('credentials', credentialsFile);
+
       const response = await fetch(`${API_BASE}/api/google/credentials/upload`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          credentials: credentialsText
-        })
+        body: formData  // No Content-Type header - let browser set it
       });
 
       if (response.ok) {
+        const result = await response.json();
         alert('Credentials saved successfully!');
-        setCredentialsText('');
+        setCredentialsFile(null);
+        // Clear the file input
+        const fileInput = document.querySelector('.credentials-file-input');
+        if (fileInput) fileInput.value = '';
+        
         loadCredentialsStatus();
         checkSystemStatus();
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to save credentials');
+        throw new Error(errorData.error || 'Failed to save credentials');
       }
     } catch (error) {
       console.error('Error saving credentials:', error);
@@ -784,17 +800,16 @@ function App() {
 
         <div className="credentials-upload">
           <label>Google Service Account JSON</label>
-          <textarea
-            placeholder="Paste your Google service account JSON here..."
-            value={credentialsText}
-            onChange={(e) => setCredentialsText(e.target.value)}
-            rows={8}
-            className="credentials-textarea"
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleCredentialsFileChange}
+            className="credentials-file-input"
           />
           <button 
             className="btn-primary" 
             onClick={saveCredentials}
-            disabled={settingsLoading || !credentialsText.trim()}
+            disabled={settingsLoading || !credentialsFile}
           >
             {settingsLoading ? 'Saving...' : 'Save Credentials'}
           </button>
