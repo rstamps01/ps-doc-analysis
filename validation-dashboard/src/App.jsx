@@ -6,6 +6,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
+  // Add debugging
+  console.log('App component rendering...');
+  
   // Real data states
   const [dashboardStats, setDashboardStats] = useState({
     totalValidations: 0,
@@ -64,34 +67,73 @@ function App() {
 
   // Load dashboard data on component mount
   useEffect(() => {
-    loadDashboardData();
-    checkSystemStatus();
+    console.log('Loading dashboard data...');
+    try {
+      loadDashboardData();
+      checkSystemStatus();
+    } catch (err) {
+      console.error('Error in dashboard useEffect:', err);
+      setError('Failed to initialize dashboard');
+    }
   }, []);
 
   // Load analytics data when analytics tab is active
   useEffect(() => {
     if (activeTab === 'analytics') {
-      loadAnalyticsData();
+      console.log('Loading analytics data...');
+      try {
+        loadAnalyticsData();
+      } catch (err) {
+        console.error('Error loading analytics:', err);
+      }
     }
   }, [activeTab]);
 
   // Load settings when settings tab is active
   useEffect(() => {
     if (activeTab === 'settings') {
-      loadCredentialsStatus();
+      console.log('Loading settings...');
+      try {
+        loadCredentialsStatus();
+      } catch (err) {
+        console.error('Error loading settings:', err);
+      }
     }
   }, [activeTab]);
 
   const loadDashboardData = async () => {
     try {
+      console.log('Attempting to load dashboard data from:', `${API_BASE}/api/real-data/dashboard-stats`);
       setLoading(true);
       const response = await fetch(`${API_BASE}/api/real-data/dashboard-stats`);
+      console.log('Dashboard API response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        setDashboardStats(data.stats);
-        setValidationResults(data.latest_validation);
+        console.log('Dashboard data received:', data);
+        
+        // Parse the actual API response structure
+        const apiData = data.data;
+        setDashboardStats({
+          totalValidations: apiData.system_metrics.total_validations.value,
+          successRate: apiData.system_metrics.success_rate.value,
+          avgProcessingTime: apiData.system_metrics.avg_processing_time.value,
+          activeRuns: apiData.system_metrics.active_projects.value
+        });
+        
+        setValidationResults({
+          overallScore: apiData.overall_score,
+          passed: apiData.passed_checks,
+          failed: apiData.failed_checks,
+          warnings: apiData.warning_checks,
+          categories: Object.entries(apiData.categories).map(([name, data]) => ({
+            name: name,
+            score: data.score,
+            status: data.status === 'pass' ? 'passed' : data.status === 'warning' ? 'warning' : 'failed'
+          }))
+        });
       } else {
-        console.error('Failed to load dashboard data:', response.status);
+        console.warn('Dashboard API failed, using fallback data. Status:', response.status);
         // Fallback to demo data if API fails
         setDashboardStats({
           totalValidations: 156,
@@ -114,7 +156,26 @@ function App() {
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      setError('Failed to load dashboard data');
+      setError('Failed to load dashboard data - using fallback');
+      // Use fallback data even on network errors
+      setDashboardStats({
+        totalValidations: 156,
+        successRate: 94.2,
+        avgProcessingTime: 2.3,
+        activeRuns: 3
+      });
+      setValidationResults({
+        overallScore: 85.2,
+        passed: 43,
+        failed: 3,
+        warnings: 4,
+        categories: [
+          { name: 'Site Survey Part 1', score: 92, status: 'passed' },
+          { name: 'Site Survey Part 2', score: 88, status: 'passed' },
+          { name: 'Install Plan', score: 76, status: 'warning' },
+          { name: 'Network Config', score: 45, status: 'failed' }
+        ]
+      });
     } finally {
       setLoading(false);
     }
