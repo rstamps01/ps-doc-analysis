@@ -46,9 +46,9 @@ except ImportError as e:
     logger.warning(f"Could not import comprehensive validation blueprint: {e}")
 
 try:
-    from routes.google_integration import google_integration_bp
+    from routes.google_integration import google_integration
     from routes.api_key_validation import api_key_validation_bp
-    app.register_blueprint(google_integration_bp)
+    app.register_blueprint(google_integration)
     app.register_blueprint(api_key_validation_bp)
     logger.info("Google integration and API key validation blueprints registered")
 except ImportError as e:

@@ -869,3 +869,153 @@
   }
 }
 
+
+/* Loading and Error States */
+.loading-indicator {
+  background: #2a2a2a;
+  border: 1px solid #404040;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  color: #4a90e2;
+  margin-bottom: 20px;
+}
+
+.error-message {
+  background: #dc354520;
+  border: 1px solid #dc3545;
+  border-radius: 8px;
+  padding: 16px;
+  color: #dc3545;
+  margin-bottom: 20px;
+}
+
+/* Validation Progress */
+.validation-progress {
+  margin: 20px 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #404040;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #4a90e2;
+  transition: width 0.3s ease;
+}
+
+.validation-progress p {
+  color: #cccccc;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* Settings Status */
+.credentials-status {
+  background: #2a2a2a;
+  border: 1px solid #404040;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.credentials-status p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: #cccccc;
+}
+
+/* Button States */
+.btn-primary:disabled {
+  background: #666666;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn-secondary:disabled {
+  background: #404040;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .n8n-app {
+    flex-direction: column;
+  }
+  
+  .n8n-sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+  }
+  
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  
+  .nav-item {
+    min-width: 120px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+  
+  .workflow-steps {
+    flex-direction: column;
+  }
+  
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Animation for status dots */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.status-dot.red {
+  animation: pulse 2s infinite;
+}
+
+/* Enhanced hover effects */
+.export-card:hover,
+.settings-card:hover {
+  transform: translateY(-2px);
+  border-color: #4a90e2;
+  transition: all 0.2s ease;
+}
+
+/* Form validation styles */
+.input-group input:invalid {
+  border-color: #dc3545;
+}
+
+.input-group input:valid {
+  border-color: #28a745;
+}
+
+/* Status indicators in settings */
+.config-options .status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #404040;
+}
+
+.config-options .status-item:last-child {
+  border-bottom: none;
+}
+
