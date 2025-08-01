@@ -62,8 +62,8 @@ function App() {
     { id: 'settings', label: '5. Settings', icon: '⚙️' }
   ];
 
-  // API base URL - adjust based on your backend deployment
-  const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000';
+  // API base URL - Vite uses import.meta.env instead of process.env
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
 
   // Load dashboard data on component mount
   useEffect(() => {
