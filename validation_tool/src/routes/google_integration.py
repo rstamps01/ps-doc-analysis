@@ -414,7 +414,7 @@ def upload_credentials():
         
         # Save credentials file
         import os
-        credentials_dir = './credentials'
+        credentials_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'credentials')
         os.makedirs(credentials_dir, exist_ok=True)
         
         credentials_path = os.path.join(credentials_dir, 'google-service-account.json')

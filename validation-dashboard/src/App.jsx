@@ -361,8 +361,26 @@ function App() {
         return;
       }
       
-      // Use a demo validation ID or the latest validation
-      const validationId = 'demo'; // For now, use demo data
+      // Get the latest validation ID from the database
+      let validationId = null;
+      
+      try {
+        const validationsResponse = await fetch(`${API_BASE}/api/real-data/dashboard-stats`);
+        if (validationsResponse.ok) {
+          const statsData = await validationsResponse.json();
+          // Use the most recent validation if available
+          if (statsData.validations && statsData.validations.length > 0) {
+            validationId = statsData.validations[0].id;
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching validation data:', error);
+      }
+      
+      if (!validationId) {
+        alert('No validation data available for export. Please run a validation first.');
+        return;
+      }
       
       const response = await fetch(`${API_BASE}/api/export/validation/${format}/${validationId}`);
       
@@ -382,47 +400,7 @@ function App() {
         alert(`${format.toUpperCase()} report exported successfully!`);
       } else {
         const errorData = await response.json();
-        
-        // If validation not found, create a demo export
-        if (response.status === 404) {
-          // Create a simple text-based export as fallback
-          const reportData = {
-            title: 'Enhanced Information Validation Tool Report',
-            timestamp: new Date().toISOString(),
-            overallScore: validationResults.overallScore,
-            passed: validationResults.passed,
-            failed: validationResults.failed,
-            warnings: validationResults.warnings,
-            categories: validationResults.categories
-          };
-          
-          const reportText = `Enhanced Information Validation Tool Report
-Generated: ${new Date().toLocaleString()}
-
-Overall Score: ${reportData.overallScore}%
-Passed Checks: ${reportData.passed}
-Failed Checks: ${reportData.failed}
-Warnings: ${reportData.warnings}
-
-Category Breakdown:
-${reportData.categories.map(cat => `- ${cat.name}: ${cat.score}% (${cat.status})`).join('\n')}
-`;
-          
-          const blob = new Blob([reportText], { type: 'text/plain' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          a.download = `validation_report.txt`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          
-          alert('Report exported as text file (demo mode)');
-        } else {
-          throw new Error(errorData.message || 'Export failed');
-        }
+        throw new Error(errorData.message || 'Export failed');
       }
     } catch (error) {
       console.error('Export error:', error);
