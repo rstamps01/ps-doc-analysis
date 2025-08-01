@@ -19,7 +19,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -93,11 +92,13 @@ temp/
 # Docker
 .docker/
 
-# Credentials and secrets
+# Credentials and secrets (specific files only)
 credentials/
-*.json
-*.key
-*.pem
+*service-account*.json
+*credentials*.json
+*secret*.json
+*private*.key
+*private*.pem
 *.p12
 *.pfx
 
