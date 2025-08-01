@@ -337,7 +337,7 @@ def export_health():
 def get_validation_data(validation_id: str) -> Dict[str, Any]:
     """Get validation data from database"""
     try:
-        conn = sqlite3.connect('validation_results.db')
+        conn = sqlite3.connect('src/validation_results.db')
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -509,4 +509,169 @@ def internal_error(error):
         'status': 'error',
         'message': 'Internal export service error'
     }), 500
+
+
+@export_bp.route('/validation/pdf/demo', methods=['GET'])
+def export_demo_pdf():
+    """Export demo validation results as PDF for testing"""
+    try:
+        # Create demo validation data
+        demo_data = {
+            'validation_id': 'demo',
+            'overall_score': 85.2,
+            'total_checks': 50,
+            'passed_checks': 43,
+            'failed_checks': 3,
+            'warning_checks': 4,
+            'document_urls': {
+                'site_survey': 'https://docs.google.com/spreadsheets/d/demo_site_survey',
+                'install_plan': 'https://docs.google.com/spreadsheets/d/demo_install_plan'
+            },
+            'configuration': {
+                'pass_threshold': 80,
+                'warning_threshold': 60
+            },
+            'category_results': {
+                'document_completeness': {
+                    'score': 90.0,
+                    'status': 'pass',
+                    'issues': []
+                },
+                'technical_validation': {
+                    'score': 85.0,
+                    'status': 'pass',
+                    'issues': ['Minor formatting inconsistency in section 3']
+                },
+                'data_consistency': {
+                    'score': 78.0,
+                    'status': 'warning',
+                    'issues': ['Some cross-references need verification']
+                },
+                'compliance_check': {
+                    'score': 88.0,
+                    'status': 'pass',
+                    'issues': []
+                }
+            },
+            'issues': [
+                {
+                    'category': 'technical_validation',
+                    'severity': 'minor',
+                    'description': 'Minor formatting inconsistency in section 3',
+                    'recommendation': 'Review and standardize formatting'
+                },
+                {
+                    'category': 'data_consistency',
+                    'severity': 'warning',
+                    'description': 'Some cross-references need verification',
+                    'recommendation': 'Verify all cross-document references'
+                }
+            ],
+            'recommendations': [
+                {
+                    'title': 'Improve Data Consistency',
+                    'priority': 'medium',
+                    'description': 'Review cross-document references for accuracy'
+                },
+                {
+                    'title': 'Standardize Formatting',
+                    'priority': 'low',
+                    'description': 'Apply consistent formatting across all sections'
+                }
+            ],
+            'created_at': datetime.now().isoformat(),
+            'processing_time': 2.3
+        }
+        
+        # Generate PDF
+        pdf_bytes = export_engine.export_validation_results_pdf(demo_data)
+        
+        # Create response
+        response = make_response(pdf_bytes)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = 'attachment; filename=demo_validation_report.pdf'
+        
+        return response
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to export demo PDF: {str(e)}'
+        }), 500
+
+@export_bp.route('/validation/excel/demo', methods=['GET'])
+def export_demo_excel():
+    """Export demo validation results as Excel for testing"""
+    try:
+        # Use the same demo data as PDF
+        demo_data = {
+            'validation_id': 'demo',
+            'overall_score': 85.2,
+            'total_checks': 50,
+            'passed_checks': 43,
+            'failed_checks': 3,
+            'warning_checks': 4,
+            'category_results': {
+                'document_completeness': {'score': 90.0, 'status': 'pass'},
+                'technical_validation': {'score': 85.0, 'status': 'pass'},
+                'data_consistency': {'score': 78.0, 'status': 'warning'},
+                'compliance_check': {'score': 88.0, 'status': 'pass'}
+            },
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Generate Excel
+        excel_bytes = export_engine.export_validation_results_excel(demo_data)
+        
+        # Create response
+        response = make_response(excel_bytes)
+        response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        response.headers['Content-Disposition'] = 'attachment; filename=demo_validation_results.xlsx'
+        
+        return response
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to export demo Excel: {str(e)}'
+        }), 500
+
+@export_bp.route('/validation/csv/demo', methods=['GET'])
+def export_demo_csv():
+    """Export demo validation results as CSV for testing"""
+    try:
+        # Get export type from query parameters
+        export_type = request.args.get('type', 'summary')
+        
+        # Create demo data
+        demo_data = {
+            'validation_id': 'demo',
+            'overall_score': 85.2,
+            'total_checks': 50,
+            'passed_checks': 43,
+            'failed_checks': 3,
+            'warning_checks': 4,
+            'category_results': {
+                'document_completeness': {'score': 90.0, 'status': 'pass'},
+                'technical_validation': {'score': 85.0, 'status': 'pass'},
+                'data_consistency': {'score': 78.0, 'status': 'warning'},
+                'compliance_check': {'score': 88.0, 'status': 'pass'}
+            }
+        }
+        
+        # Generate CSV
+        csv_content = export_engine.export_validation_results_csv(demo_data, export_type)
+        
+        # Create response
+        response = make_response(csv_content)
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = f'attachment; filename=demo_validation_{export_type}.csv'
+        
+        return response
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to export demo CSV: {str(e)}'
+        }), 500
 

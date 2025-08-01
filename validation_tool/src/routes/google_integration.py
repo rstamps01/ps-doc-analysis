@@ -285,3 +285,157 @@ def _perform_cross_validation(part1_results: dict, part2_results: dict) -> dict:
     
     return cross_validation
 
+
+@google_integration.route('/api/google/credentials/status', methods=['GET'])
+def get_credentials_status():
+    """Get the status of Google API credentials"""
+    try:
+        # Check if credentials file exists
+        import os
+        credentials_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', './credentials/google-service-account.json')
+        
+        status = {
+            'credentials_configured': False,
+            'credentials_path': credentials_path,
+            'file_exists': False,
+            'google_drive_accessible': False,
+            'google_sheets_accessible': False,
+            'project_id': None,
+            'client_email': None
+        }
+        
+        # Check if credentials file exists
+        if os.path.exists(credentials_path):
+            status['file_exists'] = True
+            
+            # Try to read credentials info
+            try:
+                import json
+                with open(credentials_path, 'r') as f:
+                    creds_data = json.load(f)
+                    status['project_id'] = creds_data.get('project_id')
+                    status['client_email'] = creds_data.get('client_email')
+                    status['credentials_configured'] = True
+            except Exception as e:
+                logger.warning(f"Could not read credentials file: {e}")
+        
+        # Test actual API connections
+        try:
+            drive_integration = GoogleDriveIntegration()
+            status['google_drive_accessible'] = drive_integration.test_connection()
+        except Exception as e:
+            logger.warning(f"Google Drive test failed: {e}")
+        
+        try:
+            sheets_integration = GoogleSheetsIntegration()
+            status['google_sheets_accessible'] = sheets_integration.test_connection()
+        except Exception as e:
+            logger.warning(f"Google Sheets test failed: {e}")
+        
+        return jsonify({
+            'success': True,
+            'status': status,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error checking credentials status: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@google_integration.route('/api/google/credentials/upload', methods=['POST', 'OPTIONS'])
+def upload_credentials():
+    """Upload Google API service account credentials"""
+    if request.method == 'OPTIONS':
+        # Handle CORS preflight request
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response
+    
+    try:
+        # Check if file was uploaded
+        if 'credentials' not in request.files:
+            return jsonify({'error': 'No credentials file uploaded'}), 400
+        
+        file = request.files['credentials']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        # Validate file is JSON
+        if not file.filename.endswith('.json'):
+            return jsonify({'error': 'Credentials file must be a JSON file'}), 400
+        
+        # Read and validate JSON content
+        try:
+            import json
+            file_content = file.read().decode('utf-8')
+            credentials_data = json.loads(file_content)
+            
+            # Validate required fields
+            required_fields = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email', 'client_id']
+            missing_fields = [field for field in required_fields if field not in credentials_data]
+            
+            if missing_fields:
+                return jsonify({
+                    'error': f'Invalid credentials file. Missing fields: {", ".join(missing_fields)}'
+                }), 400
+            
+            if credentials_data.get('type') != 'service_account':
+                return jsonify({'error': 'Credentials file must be for a service account'}), 400
+            
+        except json.JSONDecodeError:
+            return jsonify({'error': 'Invalid JSON file'}), 400
+        except Exception as e:
+            return jsonify({'error': f'Error reading file: {str(e)}'}), 400
+        
+        # Save credentials file
+        import os
+        credentials_dir = './credentials'
+        os.makedirs(credentials_dir, exist_ok=True)
+        
+        credentials_path = os.path.join(credentials_dir, 'google-service-account.json')
+        
+        with open(credentials_path, 'w') as f:
+            f.write(file_content)
+        
+        # Update environment variable
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+        
+        # Test the new credentials
+        test_results = {
+            'google_drive': False,
+            'google_sheets': False
+        }
+        
+        try:
+            drive_integration = GoogleDriveIntegration()
+            test_results['google_drive'] = drive_integration.test_connection()
+        except Exception as e:
+            logger.warning(f"Google Drive test failed with new credentials: {e}")
+        
+        try:
+            sheets_integration = GoogleSheetsIntegration()
+            test_results['google_sheets'] = sheets_integration.test_connection()
+        except Exception as e:
+            logger.warning(f"Google Sheets test failed with new credentials: {e}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Credentials uploaded successfully',
+            'project_id': credentials_data.get('project_id'),
+            'client_email': credentials_data.get('client_email'),
+            'test_results': test_results,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error uploading credentials: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
