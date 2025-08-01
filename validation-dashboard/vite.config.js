@@ -24,7 +24,7 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3000,
+    // port: auto-selected by Vite to avoid conflicts
     host: true
   }
 })
