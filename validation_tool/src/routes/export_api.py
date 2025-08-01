@@ -301,7 +301,7 @@ def get_supported_formats():
         }
     })
 
-@export_bp.route('/health', methods=['GET'])
+@export_bp.route('/api/health', methods=['GET'])
 def export_health():
     """Health check for export service"""
     try:
