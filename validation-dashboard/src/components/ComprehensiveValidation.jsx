@@ -45,7 +45,7 @@ const ComprehensiveValidation = () => {
 
   // API base URL
   // const API_BASE = 'https://58hpi8c7mpvo.manus.space';
-  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5000';
+  const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5001';
   
 
   const runComprehensiveValidation = async () => {

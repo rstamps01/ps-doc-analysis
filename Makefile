@@ -38,7 +38,7 @@ up:
 	docker-compose up -d
 	@echo "✅ Services started!"
 	@echo "Frontend: http://localhost"
-	@echo "Backend API: http://localhost:5000"
+	@echo "Backend API: http://localhost:5001"
 
 # Stop all services
 down:
@@ -76,7 +76,7 @@ clean:
 test:
 	@echo "🔍 Running health checks..."
 	@echo "Testing backend health..."
-	curl -f http://localhost:5000/health || echo "❌ Backend health check failed"
+	curl -f http://localhost:5001/health || echo "❌ Backend health check failed"
 	@echo "Testing frontend health..."
 	curl -f http://localhost/health || echo "❌ Frontend health check failed"
 	@echo "✅ Health checks complete!"
@@ -130,7 +130,7 @@ update:
 urls:
 	@echo "🌐 Application URLs:"
 	@echo "Frontend: http://localhost"
-	@echo "Backend API: http://localhost:5000"
-	@echo "Health Check: http://localhost:5000/health"
-	@echo "API Documentation: http://localhost:5000/docs (if available)"
+	@echo "Backend API: http://localhost:5001"
+	@echo "Health Check: http://localhost:5001/health"
+	@echo "API Documentation: http://localhost:5001/docs (if available)"
 
