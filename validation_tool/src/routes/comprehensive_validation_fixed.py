@@ -115,7 +115,7 @@ def run_comprehensive_validation():
         
         return jsonify({
             "status": "success",
-            "data": validation_result
+            "results": validation_result
         })
         
     except Exception as e:
