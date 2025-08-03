@@ -130,6 +130,12 @@ function App() {
 
   const runValidation = async () => {
     try {
+      // Validate that at least one document URL is provided
+      if (!validationConfig.siteSurvey1 && !validationConfig.siteSurvey2 && !validationConfig.installPlan) {
+        setError('Please provide at least one document URL before running validation.');
+        return;
+      }
+
       setLoading(true);
       setValidationProgress(0);
       setError('');
@@ -145,12 +151,13 @@ function App() {
         });
       }, 500);
 
-      const response = await fetch(`${API_BASE}/api/validation/comprehensive`, {
+      const response = await fetch(`${API_BASE}/api/validation/comprehensive/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          evaluation_criteria_url: '', // Add this if you have an evaluation criteria URL field
           site_survey_1_url: validationConfig.siteSurvey1,
           site_survey_2_url: validationConfig.siteSurvey2,
           install_plan_url: validationConfig.installPlan,
@@ -165,26 +172,31 @@ function App() {
         const data = await response.json();
         console.log('Validation response:', data);
         
-        if (data.status === 'success' && data.results) {
+        if (data.success && data.validation_id) {
+          // Store the validation ID for export functionality
+          localStorage.setItem('lastValidationId', data.validation_id);
+          
           setValidationResults({
-            overallScore: data.results.overall_score || 85.2,
-            passed: data.results.passed_checks || 41,
-            warnings: data.results.warnings || 4,
-            failed: data.results.failed_checks || 3,
-            categories: data.results.categories || validationResults.categories
+            overallScore: data.overall_score || 0,
+            passed: data.passed_checks || 0,
+            warnings: data.warnings || 0,
+            failed: data.failed_checks || 0,
+            categories: data.categories || []
           });
-          alert('Validation completed successfully!');
+          
+          // Use proper notification instead of alert
+          setError(''); // Clear any previous errors
+          console.log('Validation completed successfully!');
         } else {
-          throw new Error(data.message || 'Validation failed');
+          throw new Error(data.message || data.error || 'Validation failed');
         }
       } else {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Validation failed: Cannot connect to backend or API error');
+        throw new Error(errorData.message || errorData.error || 'Validation failed: Cannot connect to backend or API error');
       }
     } catch (error) {
       console.error('Validation error:', error);
       setError(`Validation failed: ${error.message}`);
-      alert(`Validation failed: ${error.message}`);
     } finally {
       setLoading(false);
       setTimeout(() => setValidationProgress(0), 2000);
