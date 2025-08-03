@@ -15,7 +15,10 @@ class APIKeyGoogleSheetsIntegration:
     """Google Sheets integration using API key for public spreadsheets"""
     
     def __init__(self, api_key: str = None):
-        self.api_key = api_key or "AIzaSyBnH6P_0XWH1kPEz-xKF34wi1BJ_eaWvHs"
+        import os
+        self.api_key = api_key or os.environ.get('GOOGLE_SHEETS_API_KEY')
+        if not self.api_key:
+            raise ValueError("Google Sheets API key is required. Set GOOGLE_SHEETS_API_KEY environment variable or pass api_key parameter.")
         self.base_url = "https://sheets.googleapis.com/v4/spreadsheets"
         
     def test_connection(self) -> Dict[str, Any]:
