@@ -68,14 +68,8 @@ try:
     app.register_blueprint(comprehensive_validation_bp)
     logger.info("Real comprehensive validation blueprint registered")
 except ImportError as e:
-    logger.warning(f"Could not import real comprehensive validation blueprint: {e}")
-    # Fallback to fixed version if real one fails
-    try:
-        from routes.comprehensive_validation_fixed import comprehensive_validation_bp as fallback_bp
-        app.register_blueprint(fallback_bp)
-        logger.info("Fallback comprehensive validation blueprint registered")
-    except ImportError as e2:
-        logger.error(f"Could not import any comprehensive validation blueprint: {e2}")
+    logger.error(f"Could not import comprehensive validation blueprint: {e}")
+    logger.error("Comprehensive validation functionality will not be available")
 
 try:
     from routes.google_integration import google_integration

@@ -42,7 +42,7 @@ class GoogleDriveIntegration:
         else:
             # Try to use credentials manager
             try:
-                from ..config.credentials_manager import credentials_manager
+                from config.credentials_manager import credentials_manager
                 
                 if credentials_manager.has_credentials():
                     credentials_file = credentials_manager.get_credentials_file_path()

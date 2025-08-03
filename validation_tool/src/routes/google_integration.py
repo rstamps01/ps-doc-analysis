@@ -18,28 +18,25 @@ try:
     from integrations.google_drive import GoogleDriveIntegration
     from integrations.google_sheets import GoogleSheetsIntegration
     from validation.google_sheets_validator import GoogleSheetsValidator
+    GOOGLE_INTEGRATIONS_AVAILABLE = True
 except ImportError as e:
-    # Fallback for missing modules
-    logger.warning(f"Import error: {e}. Some Google integration features may not work.")
-    
-    class GoogleDriveIntegration:
-        def __init__(self): pass
-        def test_connection(self): return False
-    
-    class GoogleSheetsIntegration:
-        def __init__(self): pass
-        def test_connection(self): return False
-        def get_sheet_metadata(self, spreadsheet_id): return {}
-        def detect_schema(self, spreadsheet_id): return {}
-    
-    class GoogleSheetsValidator:
-        def __init__(self): pass
-        def validate_site_survey_part1(self, spreadsheet_id): return {'status': 'error', 'message': 'Module not available'}
-        def validate_site_survey_part2(self, spreadsheet_id): return {'status': 'error', 'message': 'Module not available'}
+    # Log the error but don't create fallback classes
+    logger.error(f"Critical import error: {e}. Google integration features will not work.")
+    GOOGLE_INTEGRATIONS_AVAILABLE = False
 
 @google_integration.route('/api/google/test-connection', methods=['GET'])
 def test_google_connections():
     """Test Google Drive and Sheets API connections"""
+    if not GOOGLE_INTEGRATIONS_AVAILABLE:
+        return jsonify({
+            'success': False,
+            'error': 'Google integrations not available due to import errors',
+            'connections': {
+                'google_drive': {'connected': False, 'error': 'Import error'},
+                'google_sheets': {'connected': False, 'error': 'Import error'}
+            }
+        }), 500
+    
     try:
         results = {
             'google_drive': {'connected': False, 'error': None},
@@ -308,24 +305,22 @@ def _perform_cross_validation(part1_results: dict, part2_results: dict) -> dict:
 
 @google_integration.route('/api/google/credentials/status', methods=['GET'])
 def get_credentials_status():
-    """Get the status of Google API credentials"""
+    """Get the current status of Google API credentials"""
     try:
-        # Check if credentials file exists - use the same path as upload function
-        import os
-        credentials_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-        if not credentials_path:
-            # Use the same path as the upload function
-            credentials_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'credentials'))
-            credentials_path = os.path.join(credentials_dir, 'google-service-account.json')
+        # Use absolute path for credentials - same as upload function
+        credentials_path = "/app/src/credentials/google-service-account.json"
+        
+        # Check if file exists
+        file_exists = os.path.exists(credentials_path)
         
         status = {
-            'credentials_configured': False,
+            'credentials_configured': file_exists,
             'credentials_path': credentials_path,
-            'file_exists': False,
+            'file_exists': file_exists,
             'google_drive_accessible': False,
             'google_sheets_accessible': False,
-            'project_id': None,
-            'client_email': None
+            'client_email': None,
+            'project_id': None
         }
         
         # Check if credentials file exists
