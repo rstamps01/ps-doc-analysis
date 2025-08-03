@@ -310,9 +310,13 @@ def _perform_cross_validation(part1_results: dict, part2_results: dict) -> dict:
 def get_credentials_status():
     """Get the status of Google API credentials"""
     try:
-        # Check if credentials file exists
+        # Check if credentials file exists - use the same path as upload function
         import os
-        credentials_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', './credentials/google-service-account.json')
+        credentials_path = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        if not credentials_path:
+            # Use the same path as the upload function
+            credentials_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'credentials'))
+            credentials_path = os.path.join(credentials_dir, 'google-service-account.json')
         
         status = {
             'credentials_configured': False,
@@ -339,18 +343,39 @@ def get_credentials_status():
             except Exception as e:
                 logger.warning(f"Could not read credentials file: {e}")
         
-        # Test actual API connections
-        try:
-            drive_integration = GoogleDriveIntegration()
-            status['google_drive_accessible'] = drive_integration.test_connection()
-        except Exception as e:
-            logger.warning(f"Google Drive test failed: {e}")
+        # Test actual API connections with detailed error reporting
+        drive_error = None
+        sheets_error = None
         
         try:
-            sheets_integration = GoogleSheetsIntegration()
+            from integrations.google_drive import GoogleDriveIntegration
+            # Pass the credentials path explicitly
+            drive_integration = GoogleDriveIntegration(credentials_path=credentials_path)
+            status['google_drive_accessible'] = drive_integration.test_connection()
+            if not status['google_drive_accessible']:
+                drive_error = "Google Drive API test failed - check if API is enabled"
+        except Exception as e:
+            logger.warning(f"Google Drive test failed: {e}")
+            status['google_drive_accessible'] = False
+            drive_error = str(e)
+        
+        try:
+            from integrations.google_sheets import GoogleSheetsIntegration
+            # Pass the credentials path explicitly
+            sheets_integration = GoogleSheetsIntegration(credentials_path=credentials_path)
             status['google_sheets_accessible'] = sheets_integration.test_connection()
+            if not status['google_sheets_accessible']:
+                sheets_error = "Google Sheets API test failed - check if API is enabled"
         except Exception as e:
             logger.warning(f"Google Sheets test failed: {e}")
+            status['google_sheets_accessible'] = False
+            sheets_error = str(e)
+        
+        # Add error details to status
+        if drive_error:
+            status['google_drive_error'] = drive_error
+        if sheets_error:
+            status['google_sheets_error'] = sheets_error
         
         return jsonify({
             'success': True,
