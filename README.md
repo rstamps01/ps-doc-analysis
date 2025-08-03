@@ -78,8 +78,8 @@ docker-compose up -d
 ### 4. Access the Application
 
 - **Frontend**: http://localhost
-- **Backend API**: http://localhost:5000
-- **Health Check**: http://localhost:5000/health
+- **Backend API**: http://localhost:5001
+- **Health Check**: http://localhost:5001/health
 
 ## 🔧 Configuration
 
@@ -99,7 +99,7 @@ Key configuration options in `.env`:
 ```bash
 # Application
 FLASK_ENV=production
-PORT=5000
+PORT=5001
 
 # Google APIs
 GOOGLE_APPLICATION_CREDENTIALS=/app/credentials/google-service-account.json
@@ -244,7 +244,7 @@ docker build -t validation-tool-frontend ./validation-dashboard
 make test
 
 # Manual health checks
-curl http://localhost:5000/health
+curl http://localhost:5001/health
 curl http://localhost/health
 ```
 

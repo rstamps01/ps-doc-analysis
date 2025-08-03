@@ -25,7 +25,7 @@ check_backend_health() {
     
     echo "🔍 Checking backend health..."
     while [ $attempt -le $max_attempts ]; do
-        if curl -f http://backend:5000/api/health >/dev/null 2>&1; then
+        if curl -f http://backend:5001/api/health >/dev/null 2>&1; then
             echo "✅ Backend is healthy!"
             return 0
         fi
@@ -107,7 +107,7 @@ main() {
     
     # Wait for dependencies if this is the frontend
     if [ "$1" = "frontend" ]; then
-        wait_for_service backend 5000 "Backend API"
+        wait_for_service backend 5001 "Backend API"
         check_backend_health
     fi
     

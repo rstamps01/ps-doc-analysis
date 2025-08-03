@@ -156,7 +156,7 @@ const RulesManagement = ({ ...motionProps }) => {
       conditions: {
         checkExternal: true,
         checkInternal: true,
-        timeout: 5000
+        timeout: 5001
       },
       actions: {
         onPass: 'mark_complete',
