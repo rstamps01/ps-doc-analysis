@@ -157,7 +157,7 @@ function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          evaluation_criteria_url: '', // Add this if you have an evaluation criteria URL field
+          evaluation_criteria_url: 'https://docs.google.com/spreadsheets/d/1MgJ77VGjvuphf45z_0LJ77zWlAslPEvJWOrTgrgsZb8/edit?usp=sharing', // Default evaluation criteria
           site_survey_1_url: validationConfig.siteSurvey1,
           site_survey_2_url: validationConfig.siteSurvey2,
           install_plan_url: validationConfig.installPlan,

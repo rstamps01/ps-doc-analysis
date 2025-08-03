@@ -27,23 +27,55 @@ CORS(app,
      allow_headers=['Content-Type', 'Authorization', 'Accept'],
      supports_credentials=False)
 
+# Root API endpoint with description and status
+@app.route('/', methods=['GET'])
+def api_root():
+    """Root API endpoint with description and status"""
+    from datetime import datetime
+    return jsonify({
+        'service': 'Enhanced Information Validation Tool API',
+        'description': 'REST API for automated validation of Site Survey and Install Plan documents',
+        'version': '2.0.1',
+        'status': 'operational',
+        'timestamp': datetime.now().isoformat(),
+        'endpoints': {
+            'health': '/api/health',
+            'validation': '/api/validation/comprehensive/start',
+            'google_integration': '/api/google/credentials/status',
+            'analytics': '/api/analytics/dashboard/data',
+            'export': '/api/export/validation/pdf/<validation_id>'
+        },
+        'documentation': 'https://github.com/rstamps01/ps-doc-analysis',
+        'support': 'Enhanced validation system for VAST Data deployment documentation'
+    })
+
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
+    from datetime import datetime
     return jsonify({
         'service': 'Information Validation Tool Enhanced',
         'status': 'healthy',
-        'version': '2.0'
+        'version': '2.0.1',
+        'timestamp': datetime.now().isoformat(),
+        'uptime': 'operational'
     })
 
 # Register blueprints with error handling
 try:
-    from routes.comprehensive_validation_fixed import comprehensive_validation_bp
+    from routes.comprehensive_validation import comprehensive_validation_bp
     app.register_blueprint(comprehensive_validation_bp)
-    logger.info("Comprehensive validation blueprint registered")
+    logger.info("Real comprehensive validation blueprint registered")
 except ImportError as e:
-    logger.warning(f"Could not import comprehensive validation blueprint: {e}")
+    logger.warning(f"Could not import real comprehensive validation blueprint: {e}")
+    # Fallback to fixed version if real one fails
+    try:
+        from routes.comprehensive_validation_fixed import comprehensive_validation_bp as fallback_bp
+        app.register_blueprint(fallback_bp)
+        logger.info("Fallback comprehensive validation blueprint registered")
+    except ImportError as e2:
+        logger.error(f"Could not import any comprehensive validation blueprint: {e2}")
 
 try:
     from routes.google_integration import google_integration
