@@ -484,8 +484,8 @@ def upload_credentials():
             with open(credentials_path, 'w') as f:
                 json.dump(credentials_data, f, indent=2)
             
-            # Set restrictive permissions
-            os.chmod(credentials_path, 0o600)
+            # Set readable permissions for deployed environments
+            os.chmod(credentials_path, 0o644)
             logger.info("Credentials file saved successfully with restricted permissions")
             
             # Verify file was written
