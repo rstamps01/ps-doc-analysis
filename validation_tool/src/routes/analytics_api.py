@@ -217,7 +217,7 @@ def generate_analytics_report():
         }), 500
 
 @analytics_bp.route('/metrics/overview', methods=['GET'])
-def get_overview_metrics():
+def get_detailed_overview_metrics():
     """Get high-level overview metrics"""
     try:
         days = request.args.get('days', 7, type=int)
