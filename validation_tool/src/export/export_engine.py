@@ -368,15 +368,21 @@ class ExportEngine:
         # Auto-adjust column widths
         for column in ws.columns:
             max_length = 0
-            column_letter = column[0].column_letter
+            column_letter = None
             for cell in column:
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    # Skip merged cells
+                    if hasattr(cell, 'column_letter'):
+                        if column_letter is None:
+                            column_letter = cell.column_letter
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
                 except:
                     pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
+            
+            if column_letter:
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
     
     def _create_category_sheet(self, wb: openpyxl.Workbook, category_results: Dict[str, Any]):
         """Create category results sheet in Excel workbook"""
@@ -403,15 +409,21 @@ class ExportEngine:
         # Auto-adjust column widths
         for column in ws.columns:
             max_length = 0
-            column_letter = column[0].column_letter
+            column_letter = None
             for cell in column:
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    # Skip merged cells
+                    if hasattr(cell, 'column_letter'):
+                        if column_letter is None:
+                            column_letter = cell.column_letter
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
                 except:
                     pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
+            
+            if column_letter:
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
     
     def _create_issues_sheet(self, wb: openpyxl.Workbook, issues: List[Dict[str, Any]]):
         """Create issues sheet in Excel workbook"""
@@ -437,15 +449,21 @@ class ExportEngine:
         # Auto-adjust column widths
         for column in ws.columns:
             max_length = 0
-            column_letter = column[0].column_letter
+            column_letter = None
             for cell in column:
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    # Skip merged cells
+                    if hasattr(cell, 'column_letter'):
+                        if column_letter is None:
+                            column_letter = cell.column_letter
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
                 except:
                     pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
+            
+            if column_letter:
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
     
     def _create_recommendations_sheet(self, wb: openpyxl.Workbook, recommendations: List[Dict[str, Any]]):
         """Create recommendations sheet in Excel workbook"""
@@ -470,15 +488,21 @@ class ExportEngine:
         # Auto-adjust column widths
         for column in ws.columns:
             max_length = 0
-            column_letter = column[0].column_letter
+            column_letter = None
             for cell in column:
                 try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    # Skip merged cells
+                    if hasattr(cell, 'column_letter'):
+                        if column_letter is None:
+                            column_letter = cell.column_letter
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
                 except:
                     pass
-            adjusted_width = min(max_length + 2, 50)
-            ws.column_dimensions[column_letter].width = adjusted_width
+            
+            if column_letter:
+                adjusted_width = min(max_length + 2, 50)
+                ws.column_dimensions[column_letter].width = adjusted_width
     
     def _create_raw_data_sheet(self, wb: openpyxl.Workbook, validation_data: Dict[str, Any]):
         """Create raw data sheet with complete validation data"""
