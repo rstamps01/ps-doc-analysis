@@ -29,17 +29,21 @@ def start_comprehensive_validation():
         # Generate unique validation ID
         validation_id = str(uuid.uuid4())
         
-        # Extract document URLs from request
-        evaluation_criteria_url = data.get('evaluation_criteria_url')
-        site_survey_1_url = data.get('site_survey_1_url')
-        site_survey_2_url = data.get('site_survey_2_url')
+        # Extract document URLs from request (support both parameter naming conventions)
+        evaluation_criteria_url = data.get('evaluation_criteria_url') or data.get('evaluation_criteria')
+        site_survey_1_url = data.get('site_survey_1_url') or data.get('site_survey_part1_url')
+        site_survey_2_url = data.get('site_survey_2_url') or data.get('site_survey_part2_url')
         install_plan_url = data.get('install_plan_url')
         
-        # Validate required URLs
-        if not all([evaluation_criteria_url, site_survey_1_url, site_survey_2_url, install_plan_url]):
+        # If no evaluation criteria URL provided, use default test data
+        if not evaluation_criteria_url:
+            evaluation_criteria_url = 'https://docs.google.com/spreadsheets/d/1MgJ77VGjvuphf45z_0LJ77zWlAslPEvJWOrTgrgsZb8/edit?usp=sharing'
+        
+        # Validate required URLs (only need the three main document URLs)
+        if not all([site_survey_1_url, site_survey_2_url, install_plan_url]):
             return jsonify({
                 'success': False,
-                'error': 'All document URLs are required'
+                'error': 'Site Survey Part 1, Site Survey Part 2, and Install Plan URLs are required'
             }), 400
         
         # Initialize progress tracking

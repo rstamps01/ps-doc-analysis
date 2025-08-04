@@ -330,54 +330,67 @@ def export_health():
 
 # Helper functions
 def get_validation_data(validation_id: str) -> Dict[str, Any]:
-    """Get validation data from database using actual database structure"""
+    """Get validation data from validation results store or database"""
     try:
-        # Use correct database path
-        conn = sqlite3.connect('validation_results.db')
-        cursor = conn.cursor()
+        # First try to get from the validation results store (in-memory)
+        from routes.comprehensive_validation import validation_results_store
         
-        # Get validation data from the actual table structure
-        cursor.execute('''
-            SELECT validation_id, timestamp, overall_score, passed_checks, warnings, failed_checks,
-                   site_survey_1_url, site_survey_2_url, install_plan_url, evaluation_criteria_url, results_json
-            FROM validation_results WHERE validation_id = ?
-        ''', (validation_id,))
+        if validation_id in validation_results_store:
+            return validation_results_store[validation_id]
         
-        result = cursor.fetchone()
-        conn.close()
-        
-        if not result:
+        # Fallback to database if not in memory
+        try:
+            conn = sqlite3.connect('validation_results.db')
+            cursor = conn.cursor()
+            
+            # Get validation data from the actual table structure
+            cursor.execute('''
+                SELECT validation_id, timestamp, overall_score, passed_checks, warnings, failed_checks,
+                       site_survey_1_url, site_survey_2_url, install_plan_url, evaluation_criteria_url, results_json
+                FROM validation_results WHERE validation_id = ?
+            ''', (validation_id,))
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            if not result:
+                return None
+            
+            # Parse the result
+            validation_data = {
+                'validation_id': result[0],
+                'timestamp': result[1],
+                'overall_score': result[2] or 0.0,
+                'passed_checks': result[3] or 0,
+                'warnings': result[4] or 0,
+                'failed_checks': result[5] or 0,
+                'document_urls': {
+                    'site_survey_1_url': result[6],
+                    'site_survey_2_url': result[7], 
+                    'install_plan_url': result[8],
+                    'evaluation_criteria_url': result[9]
+                },
+                'results_json': result[10]
+            }
+            
+            # Parse detailed results if available
+            if validation_data['results_json']:
+                try:
+                    detailed_results = json.loads(validation_data['results_json'])
+                    validation_data.update(detailed_results)
+                except json.JSONDecodeError:
+                    pass
+            
+            # Add computed fields for export compatibility
+            validation_data['total_checks'] = validation_data['passed_checks'] + validation_data['warnings'] + validation_data['failed_checks']
+            validation_data['status'] = 'completed'
+            validation_data['execution_time'] = 2.3  # Default value
+            
+            return validation_data
+            
+        except Exception as db_error:
+            print(f"Database error: {db_error}")
             return None
-        
-        # Parse the result
-        validation_data = {
-            'validation_id': result[0],
-            'timestamp': result[1],
-            'overall_score': result[2] or 0.0,
-            'passed_checks': result[3] or 0,
-            'warnings': result[4] or 0,
-            'failed_checks': result[5] or 0,
-            'document_urls': {
-                'site_survey_1_url': result[6],
-                'site_survey_2_url': result[7], 
-                'install_plan_url': result[8],
-                'evaluation_criteria_url': result[9]
-            },
-            'results_json': result[10]
-        }
-        
-        # Parse detailed results if available
-        if validation_data['results_json']:
-            try:
-                detailed_results = json.loads(validation_data['results_json'])
-                validation_data.update(detailed_results)
-            except json.JSONDecodeError:
-                pass
-        
-        # Add computed fields for export compatibility
-        validation_data['total_checks'] = validation_data['passed_checks'] + validation_data['warnings'] + validation_data['failed_checks']
-        validation_data['status'] = 'completed'
-        validation_data['execution_time'] = 2.3  # Default value
         
         # Add categories for report generation
         validation_data['categories'] = {

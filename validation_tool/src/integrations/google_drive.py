@@ -405,3 +405,48 @@ class GoogleDriveIntegration:
             logger.error(f"Error listing recent files: {error}")
             return []
 
+
+    def process_document_from_url(self, url: str) -> Dict[str, Any]:
+        """
+        Process a document from a Google Drive URL.
+        
+        Args:
+            url: Google Drive URL to process
+            
+        Returns:
+            Dict containing success status, data, and metadata
+        """
+        try:
+            # Use the existing process_google_drive_url method
+            result = self.process_google_drive_url(url)
+            
+            if result['success']:
+                return {
+                    'success': True,
+                    'data': result.get('content', ''),
+                    'metadata': {
+                        'file_id': result.get('file_id'),
+                        'file_name': result.get('file_name'),
+                        'mime_type': result.get('mime_type'),
+                        'size': result.get('size'),
+                        'modified_time': result.get('modified_time'),
+                        'url': url
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': result.get('error', 'Unknown error processing document'),
+                    'data': None,
+                    'metadata': None
+                }
+                
+        except Exception as e:
+            logger.error(f"Error processing document from URL {url}: {str(e)}")
+            return {
+                'success': False,
+                'error': str(e),
+                'data': None,
+                'metadata': None
+            }
+
