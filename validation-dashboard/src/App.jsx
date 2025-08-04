@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
-
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://p9hwiqcn5dg3.manus.space';
+import { API_BASE, apiRequest, buildApiUrl } from './config/apiConfig';
 
 function App() {
   // State management

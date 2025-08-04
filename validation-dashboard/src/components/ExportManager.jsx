@@ -7,13 +7,8 @@ const ExportManager = () => {
   const [exportFormat, setExportFormat] = useState('pdf');
   const [customTemplate, setCustomTemplate] = useState({
     include_sections: {
-      categories: [],
-      min_severity: 'medium'
-    }
-  });
-
-  // const API_BASE_URL = 'https://58hpi8c7mpvo.manus.space';
-  const API_BASE_URL = import.meta.env.VITE_API_BASE || 'http://localhost:5001';
+      categimport React, { useState, useEffect } from 'react';
+import { API_BASE_URL, apiRequest, buildApiUrl } from '../config/apiConfig';
 
 
   useEffect(() => {
