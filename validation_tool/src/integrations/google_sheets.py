@@ -305,13 +305,32 @@ class GoogleSheetsIntegration:
             True if connection is successful, False otherwise
         """
         if not self.service:
+            logger.error("Google Sheets service not initialized")
             return False
         
         try:
-            # Try to access a test spreadsheet or create a simple request
-            # For now, just check if the service is initialized
+            # Try to make a simple API call to test the connection
+            # Use the correct method name for the Sheets API
+            response = self.service.spreadsheets().get(
+                spreadsheetId='test'  # This will fail but will test authentication
+            ).execute()
+            # If we get here without an auth error, the connection works
             return True
+        except HttpError as e:
+            # Check if it's an authentication error vs just a "not found" error
+            if e.resp.status == 404:
+                # 404 means authentication worked but spreadsheet doesn't exist - that's fine
+                logger.info("Google Sheets connection test successful (404 expected for test ID)")
+                return True
+            elif e.resp.status in [401, 403]:
+                # Authentication/authorization error
+                logger.error(f"Google Sheets authentication failed: {e}")
+                return False
+            else:
+                # Other error, but authentication probably worked
+                logger.warning(f"Google Sheets test returned unexpected error: {e}")
+                return True
         except Exception as error:
-            logger.error(f"Connection test failed: {error}")
+            logger.error(f"Google Sheets connection test failed: {error}")
             return False
 

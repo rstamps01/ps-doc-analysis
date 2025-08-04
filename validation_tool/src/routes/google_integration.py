@@ -307,8 +307,8 @@ def _perform_cross_validation(part1_results: dict, part2_results: dict) -> dict:
 def get_credentials_status():
     """Get the current status of Google API credentials"""
     try:
-        # Use absolute path for credentials - same as upload function
-        credentials_path = "/app/src/credentials/google-service-account.json"
+        # Use the same path as upload function
+        credentials_path = "/src/credentials/google-service-account.json"
         
         # Check if file exists
         file_exists = os.path.exists(credentials_path)
@@ -461,7 +461,8 @@ def upload_credentials():
         import os
         try:
             logger.info("Starting file save process...")
-            credentials_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'credentials'))
+            # Use absolute path that matches the status check
+            credentials_dir = '/src/credentials'
             logger.info(f"Credentials directory: {credentials_dir}")
             
             # Ensure directory exists

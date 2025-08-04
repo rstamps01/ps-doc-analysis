@@ -24,8 +24,19 @@ app = Flask(__name__)
 CORS(app, 
      origins=['*'],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-     allow_headers=['Content-Type', 'Authorization', 'Accept'],
-     supports_credentials=False)
+     allow_headers=['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+     supports_credentials=False,
+     expose_headers=['Content-Type', 'Authorization'],
+     max_age=86400)
+
+# Additional CORS headers for all responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,X-Requested-With')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Expose-Headers', 'Content-Type,Authorization')
+    return response
 
 # Root API endpoint with description and status
 @app.route('/', methods=['GET'])
@@ -125,12 +136,12 @@ try:
 except ImportError as e:
     logger.warning(f"Could not import real data blueprint: {e}")
 
-# Register metrics collector blueprint
+# Register metrics collector blueprint (optional for deployment)
 try:
     from routes.metrics_collector import metrics_collector_bp
     app.register_blueprint(metrics_collector_bp)
     logger.info("Metrics collector blueprint registered")
-except ImportError as e:
+except (ImportError, NotImplementedError) as e:
     logger.warning(f"Could not import metrics collector blueprint: {e}")
 
 # Error handlers

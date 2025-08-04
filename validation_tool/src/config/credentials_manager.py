@@ -10,7 +10,17 @@ class CredentialsManager:
     """Manages Google API credentials for the validation tool"""
     
     def __init__(self):
-        self.credentials_file = os.path.join(tempfile.gettempdir(), 'google_credentials.json')
+        # Try the deployed path first, then fall back to local development path
+        self.credentials_file = '/src/credentials/google-service-account.json'
+        if not os.path.exists(self.credentials_file):
+            # Fall back to local development path
+            local_path = os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json')
+            if os.path.exists(local_path):
+                self.credentials_file = local_path
+            else:
+                # Fall back to temp directory
+                self.credentials_file = os.path.join(tempfile.gettempdir(), 'google_credentials.json')
+        
         self.credentials = None
         self.load_credentials()
     
