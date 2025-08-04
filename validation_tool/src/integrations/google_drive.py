@@ -266,6 +266,13 @@ class GoogleDriveIntegration:
         Returns:
             Dictionary with permission information
         """
+        # Check if Google Drive service is initialized
+        if not self.service:
+            return {
+                'accessible': False,
+                'error': 'Google Drive service not initialized - credentials may be missing or invalid'
+            }
+        
         try:
             metadata = self.get_file_metadata(file_id)
             
@@ -313,6 +320,12 @@ class GoogleDriveIntegration:
             'metadata': {},
             'error': None
         }
+        
+        # Check if Google Drive service is initialized
+        if not self.service:
+            result['error'] = "Google Drive service not initialized - credentials may be missing or invalid"
+            logger.error("Google Drive service not initialized")
+            return result
         
         try:
             # Extract file ID

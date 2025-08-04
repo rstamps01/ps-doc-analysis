@@ -407,7 +407,7 @@ def get_dashboard_data():
         
         return jsonify({
             'status': 'success',
-            'data': dashboard_data,
+            'dashboard_data': dashboard_data,
             'last_updated': datetime.now().isoformat()
         })
         

@@ -10,16 +10,30 @@ class CredentialsManager:
     """Manages Google API credentials for the validation tool"""
     
     def __init__(self):
-        # Try the deployed path first, then fall back to local development path
-        self.credentials_file = '/src/credentials/google-service-account.json'
-        if not os.path.exists(self.credentials_file):
-            # Fall back to local development path
-            local_path = os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json')
-            if os.path.exists(local_path):
-                self.credentials_file = local_path
-            else:
-                # Fall back to temp directory
-                self.credentials_file = os.path.join(tempfile.gettempdir(), 'google_credentials.json')
+        # Try multiple possible paths for credentials file
+        possible_paths = [
+            # Local development path (relative to this file)
+            os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json'),
+            # Absolute path in project
+            '/home/ubuntu/ps-doc-analysis/validation_tool/src/credentials/google-service-account.json',
+            # Deployed path
+            '/src/credentials/google-service-account.json',
+            # Fallback temp directory
+            os.path.join(tempfile.gettempdir(), 'google_credentials.json')
+        ]
+        
+        self.credentials_file = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                self.credentials_file = path
+                logger.info(f"Found credentials file at: {path}")
+                break
+        
+        # If no existing file found, use the first path for saving new credentials
+        if not self.credentials_file:
+            self.credentials_file = possible_paths[0]
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(self.credentials_file), exist_ok=True)
         
         self.credentials = None
         self.load_credentials()
