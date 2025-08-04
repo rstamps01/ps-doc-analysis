@@ -29,13 +29,18 @@ CORS(app,
      expose_headers=['Content-Type', 'Authorization'],
      max_age=86400)
 
-# Additional CORS headers for all responses
+# Additional CORS headers for all responses (only if not already set by CORS)
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,X-Requested-With')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Expose-Headers', 'Content-Type,Authorization')
+    # Only add headers if they don't already exist to avoid duplicates
+    if 'Access-Control-Allow-Origin' not in response.headers:
+        response.headers.add('Access-Control-Allow-Origin', '*')
+    if 'Access-Control-Allow-Headers' not in response.headers:
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,X-Requested-With')
+    if 'Access-Control-Allow-Methods' not in response.headers:
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    if 'Access-Control-Expose-Headers' not in response.headers:
+        response.headers.add('Access-Control-Expose-Headers', 'Content-Type,Authorization')
     return response
 
 # Root API endpoint with description and status
@@ -124,9 +129,14 @@ except ImportError as e:
 try:
     from routes.export_api import export_bp
     app.register_blueprint(export_bp)
-    logger.info("Export API blueprint registered")
+    logger.info("Export API blueprint registered successfully")
+    logger.info(f"Export blueprint URL prefix: {export_bp.url_prefix}")
 except ImportError as e:
-    logger.warning(f"Could not import export blueprint: {e}")
+    logger.error(f"Could not import export blueprint: {e}")
+except Exception as e:
+    logger.error(f"Error registering export blueprint: {e}")
+    import traceback
+    traceback.print_exc()
 
 # Register real data blueprint
 try:

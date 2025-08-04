@@ -29,9 +29,22 @@ class CredentialsManager:
         try:
             if os.path.exists(self.credentials_file):
                 with open(self.credentials_file, 'r') as f:
-                    self.credentials = json.load(f)
-                logger.info("Google credentials loaded successfully")
-                return self.credentials
+                    credentials_data = json.load(f)
+                
+                # Validate credentials before setting
+                if self._validate_credentials(credentials_data):
+                    self.credentials = credentials_data
+                    logger.info(f"Google credentials loaded successfully from {self.credentials_file}")
+                    return self.credentials
+                else:
+                    logger.error("Invalid credentials format in file")
+                    self.credentials = None
+                    return None
+            else:
+                logger.info(f"No credentials file found at {self.credentials_file}")
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in credentials file: {e}")
         except Exception as e:
             logger.error(f"Failed to load credentials: {e}")
         
