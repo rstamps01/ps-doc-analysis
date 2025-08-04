@@ -492,6 +492,14 @@ def upload_credentials():
             if os.path.exists(credentials_path):
                 file_size = os.path.getsize(credentials_path)
                 logger.info(f"File verification: exists=True, size={file_size} bytes")
+                
+                # Reload credentials manager to recognize the new file
+                try:
+                    from config.credentials_manager import credentials_manager
+                    reload_success = credentials_manager.reload_credentials()
+                    logger.info(f"Credentials manager reloaded: {reload_success}")
+                except Exception as e:
+                    logger.warning(f"Failed to reload credentials manager: {e}")
             else:
                 logger.error("File verification failed: file does not exist after writing")
                 return jsonify({'error': 'Failed to save credentials file'}), 500

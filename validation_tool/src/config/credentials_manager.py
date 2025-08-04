@@ -183,36 +183,6 @@ class CredentialsManager:
         # If no writable location found, return the first path as fallback
         return possible_paths[0]
 
-    def reload_credentials(self) -> bool:
-        """Reload credentials from file - useful after upload"""
-        logger.info("Reloading credentials from file...")
-        
-        # Re-check all possible paths in case a new file was uploaded
-        possible_paths = [
-            # Local development path (relative to this file)
-            os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json'),
-            # Absolute path in project
-            '/home/ubuntu/ps-doc-analysis/validation_tool/src/credentials/google-service-account.json',
-            # Deployed path
-            '/src/credentials/google-service-account.json',
-            # Fallback temp directory
-            os.path.join(tempfile.gettempdir(), 'google_credentials.json')
-        ]
-        
-        self.credentials_file = None
-        for path in possible_paths:
-            if os.path.exists(path):
-                self.credentials_file = path
-                logger.info(f"Found credentials file at: {path}")
-                break
-        
-        if self.credentials_file:
-            result = self.load_credentials()
-            return result is not None
-        else:
-            logger.warning("No credentials file found during reload")
-            return False
-
     def has_credentials(self) -> bool:
         """Check if valid credentials are available"""
         return self.credentials is not None

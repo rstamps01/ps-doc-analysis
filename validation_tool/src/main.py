@@ -128,7 +128,7 @@ except ImportError as e:
 # Register export blueprint
 try:
     from routes.export_api import export_bp
-    app.register_blueprint(export_bp)
+    app.register_blueprint(export_bp, url_prefix='/api/export')
     logger.info("Export API blueprint registered successfully")
     logger.info(f"Export blueprint URL prefix: {export_bp.url_prefix}")
 except ImportError as e:
