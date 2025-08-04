@@ -42,6 +42,18 @@ class CredentialsManager:
         """Load credentials from file if they exist"""
         try:
             if os.path.exists(self.credentials_file):
+                # Check if file is readable
+                if not os.access(self.credentials_file, os.R_OK):
+                    logger.error(f"Credentials file exists but is not readable: {self.credentials_file}")
+                    # Try to fix permissions
+                    try:
+                        os.chmod(self.credentials_file, 0o644)
+                        logger.info("Fixed credentials file permissions")
+                    except Exception as perm_error:
+                        logger.error(f"Cannot fix permissions: {perm_error}")
+                        self.credentials = None
+                        return None
+                
                 with open(self.credentials_file, 'r') as f:
                     credentials_data = json.load(f)
                 
@@ -59,11 +71,42 @@ class CredentialsManager:
                 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in credentials file: {e}")
+        except PermissionError as e:
+            logger.error(f"Permission denied accessing credentials file: {e}")
         except Exception as e:
             logger.error(f"Failed to load credentials: {e}")
         
         self.credentials = None
         return None
+    
+    def reload_credentials(self) -> bool:
+        """Reload credentials from file - useful after upload"""
+        try:
+            # Re-scan for credentials file in case it was uploaded to a new location
+            possible_paths = [
+                # Local development path (relative to this file)
+                os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json'),
+                # Absolute path in project
+                '/home/ubuntu/ps-doc-analysis/validation_tool/src/credentials/google-service-account.json',
+                # Deployed path
+                '/src/credentials/google-service-account.json',
+                # Fallback temp directory
+                os.path.join(tempfile.gettempdir(), 'google_credentials.json')
+            ]
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    self.credentials_file = path
+                    logger.info(f"Found credentials file at: {path}")
+                    break
+            
+            # Load credentials from the found file
+            result = self.load_credentials()
+            return result is not None
+            
+        except Exception as e:
+            logger.error(f"Failed to reload credentials: {e}")
+            return False
     
     def save_credentials(self, credentials_data: Dict[str, Any]) -> bool:
         """Save Google API credentials to secure storage"""
@@ -112,6 +155,64 @@ class CredentialsManager:
         """Get current credentials"""
         return self.credentials
     
+    def get_preferred_save_path(self) -> str:
+        """Get the preferred path for saving new credentials"""
+        # Try to use the same path resolution logic as __init__
+        possible_paths = [
+            # Local development path (relative to this file)
+            os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json'),
+            # Absolute path in project
+            '/home/ubuntu/ps-doc-analysis/validation_tool/src/credentials/google-service-account.json',
+            # Deployed path
+            '/src/credentials/google-service-account.json',
+            # Fallback temp directory
+            os.path.join(tempfile.gettempdir(), 'google_credentials.json')
+        ]
+        
+        # Try to find a writable location
+        for path in possible_paths:
+            test_dir = os.path.dirname(path)
+            try:
+                # Test if we can write to this directory
+                os.makedirs(test_dir, exist_ok=True)
+                if os.access(test_dir, os.W_OK):
+                    return path
+            except Exception:
+                continue
+        
+        # If no writable location found, return the first path as fallback
+        return possible_paths[0]
+
+    def reload_credentials(self) -> bool:
+        """Reload credentials from file - useful after upload"""
+        logger.info("Reloading credentials from file...")
+        
+        # Re-check all possible paths in case a new file was uploaded
+        possible_paths = [
+            # Local development path (relative to this file)
+            os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json'),
+            # Absolute path in project
+            '/home/ubuntu/ps-doc-analysis/validation_tool/src/credentials/google-service-account.json',
+            # Deployed path
+            '/src/credentials/google-service-account.json',
+            # Fallback temp directory
+            os.path.join(tempfile.gettempdir(), 'google_credentials.json')
+        ]
+        
+        self.credentials_file = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                self.credentials_file = path
+                logger.info(f"Found credentials file at: {path}")
+                break
+        
+        if self.credentials_file:
+            result = self.load_credentials()
+            return result is not None
+        else:
+            logger.warning("No credentials file found during reload")
+            return False
+
     def has_credentials(self) -> bool:
         """Check if valid credentials are available"""
         return self.credentials is not None

@@ -32,9 +32,22 @@ class GoogleSheetsIntegration:
                 credentials_json, scopes=self.scopes
             )
         elif credentials_path and os.path.exists(credentials_path):
-            self.credentials = Credentials.from_service_account_file(
-                credentials_path, scopes=self.scopes
-            )
+            try:
+                self.credentials = Credentials.from_service_account_file(
+                    credentials_path, scopes=self.scopes
+                )
+            except PermissionError as e:
+                logger.warning(f"Permission error reading credentials file {credentials_path}: {e}")
+                # Try to fix permissions
+                try:
+                    os.chmod(credentials_path, 0o644)
+                    logger.info("Fixed credentials file permissions, retrying...")
+                    self.credentials = Credentials.from_service_account_file(
+                        credentials_path, scopes=self.scopes
+                    )
+                except Exception as fix_error:
+                    logger.error(f"Cannot fix permissions or read file: {fix_error}")
+                    self.credentials = None
         else:
             # Try to use credentials manager
             try:
@@ -43,10 +56,24 @@ class GoogleSheetsIntegration:
                 if credentials_manager.has_credentials():
                     credentials_file = credentials_manager.get_credentials_file_path()
                     if credentials_file:
-                        self.credentials = Credentials.from_service_account_file(
-                            credentials_file, scopes=self.scopes
-                        )
-                        logger.info("Using credentials from credentials manager")
+                        try:
+                            self.credentials = Credentials.from_service_account_file(
+                                credentials_file, scopes=self.scopes
+                            )
+                            logger.info("Using credentials from credentials manager")
+                        except PermissionError as e:
+                            logger.warning(f"Permission error reading credentials from manager: {e}")
+                            # Try to fix permissions
+                            try:
+                                os.chmod(credentials_file, 0o644)
+                                logger.info("Fixed credentials file permissions, retrying...")
+                                self.credentials = Credentials.from_service_account_file(
+                                    credentials_file, scopes=self.scopes
+                                )
+                                logger.info("Using credentials from credentials manager after permission fix")
+                            except Exception as fix_error:
+                                logger.error(f"Cannot fix permissions: {fix_error}")
+                                self.credentials = None
                     else:
                         logger.warning("Credentials manager has credentials but no file path")
                         self.credentials = None
