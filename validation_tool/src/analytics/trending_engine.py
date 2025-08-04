@@ -19,7 +19,7 @@ import statistics
 class TrendingEngine:
     """Advanced trending analytics engine for validation metrics"""
     
-    def __init__(self, db_path: str = "src/validation_results.db"):
+    def __init__(self, db_path: str = "validation_results.db"):
         self.db_path = db_path
         self.init_analytics_tables()
     

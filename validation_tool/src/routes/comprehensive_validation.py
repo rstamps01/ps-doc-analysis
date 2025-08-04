@@ -250,9 +250,22 @@ def _execute_comprehensive_validation(validation_id, eval_criteria_url, site_sur
         })
     
     try:
-        # Initialize integrations
+        # Initialize integrations with credentials manager
+        from config.credentials_manager import credentials_manager
+        
         sheets_integration = EnhancedGoogleSheetsIntegration()
-        drive_integration = GoogleDriveIntegration()
+        
+        # Initialize Google Drive with credentials from manager
+        if credentials_manager.has_credentials():
+            credentials_file = credentials_manager.get_credentials_file_path()
+            drive_integration = GoogleDriveIntegration(credentials_path=credentials_file)
+        else:
+            drive_integration = GoogleDriveIntegration()
+        
+        # Check if Google Drive service is properly initialized
+        if not drive_integration.service:
+            raise Exception("Google Drive service not initialized")
+        
         validation_engine = ComprehensiveValidationEngine()
         
         # Set up progress callback for validation engine
