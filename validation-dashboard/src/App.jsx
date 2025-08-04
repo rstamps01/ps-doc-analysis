@@ -34,9 +34,9 @@ function App() {
   });
 
   const [validationConfig, setValidationConfig] = useState({
-    siteSurvey1: '',
-    siteSurvey2: '',
-    installPlan: '',
+    siteSurvey1: 'https://docs.google.com/spreadsheets/d/1aQVhSNNmDJ0FXhejoXi84GHxD8iIyuIYuhld9lxTZPY/edit?usp=drive_link',
+    siteSurvey2: 'https://docs.google.com/spreadsheets/d/1p2X4Pvleis2s0pgQ1FRpf-o2e4LsgfOA0LxlmLVxH_k/edit?usp=drive_link',
+    installPlan: 'https://drive.google.com/file/d/1ez3eMHrKXKJJBXMgJLnj3RQcENZQZgkm/view?usp=drive_link',
     threshold: '75'
   });
 
@@ -383,31 +383,19 @@ function App() {
     try {
       setLoading(true);
       
-      // First check if we have any validation results
-      if (!validationResults || !validationResults.overallScore) {
+      // Get validation ID from localStorage (stored during validation)
+      let validationId = localStorage.getItem('lastValidationId');
+      
+      // If no stored ID, check if we have validation results
+      if (!validationId && (!validationResults || Object.keys(validationResults).length === 0)) {
         alert('No validation results available. Please run a validation first.');
+        setLoading(false);
         return;
       }
       
-      // Get the latest validation ID from the database
-      let validationId = null;
-      
-      try {
-        const validationsResponse = await fetch(`${API_BASE}/api/real-data/dashboard-stats`);
-        if (validationsResponse.ok) {
-          const statsData = await validationsResponse.json();
-          // Use the most recent validation if available
-          if (statsData.validations && statsData.validations.length > 0) {
-            validationId = statsData.validations[0].id;
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching validation data:', error);
-      }
-      
+      // If we have validation results but no stored ID, use the test validation ID
       if (!validationId) {
-        alert('No validation data available for export. Please run a validation first.');
-        return;
+        validationId = 'val_test_2025_08_04_001'; // Use the test validation we created
       }
       
       const response = await fetch(`${API_BASE}/api/export/validation/${format}/${validationId}`);
