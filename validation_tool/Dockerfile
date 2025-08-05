@@ -25,10 +25,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
     # Copy application code
     COPY src/ ./src/
-    COPY credentials/ ./credentials/
     
-    # Create necessary directories
-RUN mkdir -p /app/data /app/logs /app/exports /app/uploads
+    # Create necessary directories with proper permissions
+    RUN mkdir -p /app/data /app/logs /app/exports /app/uploads /app/credentials && \
+        chmod -R 755 /app && \
+        chmod 777 /app/credentials
 
 # Set permissions
 RUN chmod -R 755 /app

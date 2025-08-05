@@ -12,11 +12,13 @@ class CredentialsManager:
     def __init__(self):
         # Try multiple possible paths for credentials file
         possible_paths = [
+            # Container deployment path (preferred)
+            '/app/credentials/google-service-account.json',
             # Local development path (relative to this file)
             os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json'),
             # Absolute path in project
             '/home/ubuntu/ps-doc-analysis/validation_tool/src/credentials/google-service-account.json',
-            # Deployed path
+            # Legacy deployed path
             '/src/credentials/google-service-account.json',
             # Fallback temp directory
             os.path.join(tempfile.gettempdir(), 'google_credentials.json')
@@ -84,11 +86,13 @@ class CredentialsManager:
         try:
             # Re-scan for credentials file in case it was uploaded to a new location
             possible_paths = [
+                # Container deployment path (preferred)
+                '/app/credentials/google-service-account.json',
                 # Local development path (relative to this file)
                 os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json'),
                 # Absolute path in project
                 '/home/ubuntu/ps-doc-analysis/validation_tool/src/credentials/google-service-account.json',
-                # Deployed path
+                # Legacy deployed path
                 '/src/credentials/google-service-account.json',
                 # Fallback temp directory
                 os.path.join(tempfile.gettempdir(), 'google_credentials.json')
@@ -159,11 +163,13 @@ class CredentialsManager:
         """Get the preferred path for saving new credentials"""
         # Try to use the same path resolution logic as __init__
         possible_paths = [
+            # Container deployment path (preferred)
+            '/app/credentials/google-service-account.json',
             # Local development path (relative to this file)
             os.path.join(os.path.dirname(__file__), '..', 'credentials', 'google-service-account.json'),
             # Absolute path in project
             '/home/ubuntu/ps-doc-analysis/validation_tool/src/credentials/google-service-account.json',
-            # Deployed path
+            # Legacy deployed path
             '/src/credentials/google-service-account.json',
             # Fallback temp directory
             os.path.join(tempfile.gettempdir(), 'google_credentials.json')

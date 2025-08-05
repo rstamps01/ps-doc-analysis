@@ -308,7 +308,7 @@ def get_credentials_status():
     """Get the current status of Google API credentials"""
     try:
         # Use the same path as upload function
-        credentials_path = "/src/credentials/google-service-account.json"
+        credentials_path = "/app/credentials/google-service-account.json"
         
         # Check if file exists
         file_exists = os.path.exists(credentials_path)
@@ -462,7 +462,7 @@ def upload_credentials():
         try:
             logger.info("Starting file save process...")
             # Use absolute path that matches the status check
-            credentials_dir = '/src/credentials'
+            credentials_dir = '/app/credentials'
             logger.info(f"Credentials directory: {credentials_dir}")
             
             # Ensure directory exists
