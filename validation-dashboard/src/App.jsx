@@ -199,18 +199,18 @@ function App() {
           const metrics = realData.system_metrics || {};
           
           setDashboardStats({
-            totalValidations: metrics.total_validations?.value || realData.total_checks || 1,
-            successRate: metrics.success_rate?.value || ((realData.passed_checks / realData.total_checks) * 100).toFixed(1),
-            avgProcessingTime: metrics.avg_processing_time?.value || realData.execution_time || 2.3,
+            totalValidations: metrics.total_validations?.value || realData.total_checks || 0,
+            successRate: metrics.success_rate?.value || ((realData.passed_checks / realData.total_checks) * 100).toFixed(1) || 0,
+            avgProcessingTime: metrics.avg_processing_time?.value || realData.execution_time || 0,
             activeRuns: metrics.active_projects?.value || 1
           });
           
           // Update validation results with real data
           setValidationResults({
-            overallScore: realData.overall_score || 85.2,
-            passed: realData.passed_checks || 43,
-            warnings: realData.warning_checks || 4,
-            failed: realData.failed_checks || 3,
+            overallScore: realData.overall_score || 0,
+            passed: realData.passed_checks || 0,
+            warnings: realData.warning_checks || 0,
+            failed: realData.failed_checks || 0,
             categories: Object.entries(realData.categories || {}).map(([name, cat]) => ({
               name,
               score: cat.score,
@@ -228,7 +228,22 @@ function App() {
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       setError(`Failed to load dashboard data: ${error.message}`);
-      // Don't use fallback data - show the error instead
+      
+      // Set loading states to show "..." instead of zeros
+      setDashboardStats({
+        totalValidations: null,
+        successRate: null,
+        avgProcessingTime: null,
+        activeRuns: null
+      });
+      
+      setValidationResults({
+        overallScore: null,
+        passed: null,
+        warnings: null,
+        failed: null,
+        categories: []
+      });
     }
   };
 

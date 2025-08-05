@@ -26,119 +26,74 @@ const EnhancedValidation = () => {
     status: ''
   });
 
-  // Mock data for enhanced validation
-  const mockEnhancedData = {
-    overview: {
-      totalCriteria: 65,
-      activeCriteria: 58,
-      projectsValidated: 127,
-      averageAccuracy: 94.2,
-      categories: [
-        { name: 'Basic Project Information', criteria: 8, passed: 7, accuracy: 87.5 },
-        { name: 'SFDC & Documentation Integration', criteria: 4, passed: 4, accuracy: 100 },
-        { name: 'Template & Documentation Standards', criteria: 6, passed: 5, accuracy: 83.3 },
-        { name: 'Installation Plan Content Validation', criteria: 12, passed: 11, accuracy: 91.7 },
-        { name: 'Network Configuration & Technical', criteria: 15, passed: 14, accuracy: 93.3 },
-        { name: 'Site Survey Documentation', criteria: 16, passed: 15, accuracy: 93.8 },
-        { name: 'Cross-Document Consistency', criteria: 8, passed: 7, accuracy: 87.5 }
-      ]
-    },
-    criteria: [
-      {
-        id: 'PROJ_001_ENH',
-        name: 'Project Name Consistency Validation',
-        category: 'Basic Project Information',
-        complexity: 'medium',
-        validationLevel: 2,
-        automationSupport: true,
-        conditionalLogic: true,
-        accuracy: 96.8,
-        lastExecuted: '2025-01-30T14:30:00Z',
-        status: 'active',
-        description: 'Validates project name consistency across all documents and systems'
-      },
-      {
-        id: 'NET_005_ENH',
-        name: 'Advanced Network Configuration Validation',
-        category: 'Network Configuration & Technical',
-        complexity: 'high',
-        validationLevel: 4,
-        automationSupport: true,
-        conditionalLogic: true,
-        accuracy: 89.2,
-        lastExecuted: '2025-01-30T13:45:00Z',
-        status: 'active',
-        description: 'Comprehensive validation of network configurations including VLANs, IP ranges, and MTU settings'
-      },
-      {
-        id: 'CROSS_001_ENH',
-        name: 'Site Survey Cross-Document Synchronization',
-        category: 'Cross-Document Consistency',
-        complexity: 'high',
-        validationLevel: 3,
-        automationSupport: true,
-        conditionalLogic: true,
-        accuracy: 92.1,
-        lastExecuted: '2025-01-30T12:15:00Z',
-        status: 'active',
-        description: 'Validates synchronization between Site Survey Part 1 and Part 2 documents'
+  // Real data state
+  const [validationData, setValidationData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Load real validation data
+  useEffect(() => {
+    loadValidationData();
+  }, []);
+
+  const loadValidationData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Load real validation data from API
+      const response = await fetch('/api/real-data/dashboard-stats');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status === 'success') {
+          // Transform real data to match component structure
+          const transformedData = {
+            overview: {
+              totalCriteria: data.data.total_checks || 0,
+              activeCriteria: data.data.passed_checks || 0,
+              projectsValidated: 1,
+              averageAccuracy: data.data.overall_score || 0,
+              categories: Object.entries(data.data.categories || {}).map(([name, cat]) => ({
+                name,
+                criteria: cat.checks_total || 0,
+                passed: cat.checks_passed || 0,
+                accuracy: cat.score || 0
+              }))
+            },
+            criteria: [] // Would be populated from detailed validation criteria API
+          };
+          setValidationData(transformedData);
+        }
+      } else {
+        throw new Error('Failed to load validation data');
       }
-    ],
-    workflows: [
-      {
-        id: 'WF_001',
-        projectId: 'PROJ_CERES_2025',
-        status: 'completed',
-        totalCriteria: 42,
-        executedCriteria: 38,
-        conditionalExclusions: 4,
-        successRate: 94.7,
-        executionTime: 2340,
-        createdAt: '2025-01-30T10:00:00Z',
-        completedAt: '2025-01-30T10:02:20Z'
-      },
-      {
-        id: 'WF_002',
-        projectId: 'PROJ_ATLAS_2025',
-        status: 'running',
-        totalCriteria: 45,
-        executedCriteria: 32,
-        conditionalExclusions: 2,
-        successRate: 91.2,
-        executionTime: 1890,
-        createdAt: '2025-01-30T14:15:00Z',
-        completedAt: null
-      }
-    ],
-    analytics: {
-      accuracyTrend: [
-        { date: '2025-01-24', accuracy: 91.2 },
-        { date: '2025-01-25', accuracy: 92.8 },
-        { date: '2025-01-26', accuracy: 93.1 },
-        { date: '2025-01-27', accuracy: 94.5 },
-        { date: '2025-01-28', accuracy: 93.9 },
-        { date: '2025-01-29', accuracy: 94.8 },
-        { date: '2025-01-30', accuracy: 94.2 }
-      ],
-      executionStats: {
-        totalExecutions: 1247,
-        averageExecutionTime: 1850,
-        automationRate: 87.3,
-        conditionalOptimization: 23.1
-      }
+    } catch (error) {
+      console.error('Error loading validation data:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Load mock data initially (remove this when real API is ready)
   useEffect(() => {
-    setValidationData(mockEnhancedData);
-  }, []);
+    if (!validationData) {
+      setValidationData({
+        overview: {
+          totalCriteria: 0,
+          activeCriteria: 0,
+          projectsValidated: 0,
+          averageAccuracy: 0,
+          categories: []
+        },
+        criteria: []
+      });
+    }
+  }, [validationData]);
 
   const handleRefresh = async () => {
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-    }, 1000);
+    await loadValidationData();
   };
 
   const getStatusIcon = (status) => {

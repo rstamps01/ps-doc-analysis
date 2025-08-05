@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { useState, useEffect } from 'react'
 import { 
   CheckCircle, 
   XCircle, 
@@ -34,57 +35,82 @@ import {
 } from 'recharts'
 
 const Dashboard = ({ systemStats, ...motionProps }) => {
-  // Mock data for charts
-  const validationTrends = [
-    { date: '2024-01-01', validations: 45, passed: 35, failed: 10 },
-    { date: '2024-01-02', validations: 52, passed: 41, failed: 11 },
-    { date: '2024-01-03', validations: 38, passed: 32, failed: 6 },
-    { date: '2024-01-04', validations: 61, passed: 48, failed: 13 },
-    { date: '2024-01-05', validations: 55, passed: 44, failed: 11 },
-    { date: '2024-01-06', validations: 47, passed: 39, failed: 8 },
-    { date: '2024-01-07', validations: 58, passed: 46, failed: 12 }
-  ]
+  // Real data states
+  const [validationTrends, setValidationTrends] = useState([])
+  const [statusDistribution, setStatusDistribution] = useState([])
+  const [recentActivity, setRecentActivity] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const statusDistribution = [
-    { name: 'Passed', value: 78.5, color: '#22c55e' },
-    { name: 'Failed', value: 15.2, color: '#ef4444' },
-    { name: 'Partial', value: 6.3, color: '#f59e0b' }
-  ]
+  // Load real data on component mount
+  useEffect(() => {
+    loadRealDashboardData()
+  }, [])
 
-  const recentActivity = [
-    {
-      id: 1,
-      type: 'validation_completed',
-      title: 'Product Requirements Document validated',
-      status: 'passed',
-      time: '2 minutes ago',
-      score: 0.95
-    },
-    {
-      id: 2,
-      type: 'validation_failed',
-      title: 'API Documentation validation failed',
-      status: 'failed',
-      time: '15 minutes ago',
-      score: 0.42
-    },
-    {
-      id: 3,
-      type: 'rule_updated',
-      title: 'Content completeness rule updated',
-      status: 'info',
-      time: '1 hour ago',
-      score: null
-    },
-    {
-      id: 4,
-      type: 'validation_completed',
-      title: 'User Guide validation completed',
-      status: 'partial',
-      time: '2 hours ago',
-      score: 0.73
+  const loadRealDashboardData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      // Load validation history for trends
+      const historyResponse = await fetch('/api/real-data/validation-history')
+      if (historyResponse.ok) {
+        const historyData = await historyResponse.json()
+        if (historyData.status === 'success') {
+          // Transform history data for chart
+          const trends = historyData.data.validation_history.map(run => ({
+            date: new Date(run.timestamp).toISOString().split('T')[0],
+            validations: 1,
+            passed: run.passed_checks,
+            failed: run.failed_checks
+          }))
+          setValidationTrends(trends)
+        }
+      }
+
+      // Load dashboard stats for status distribution
+      const statsResponse = await fetch('/api/real-data/dashboard-stats')
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json()
+        if (statsData.status === 'success') {
+          const data = statsData.data
+          const total = data.total_checks
+          const passedPercent = ((data.passed_checks / total) * 100).toFixed(1)
+          const failedPercent = ((data.failed_checks / total) * 100).toFixed(1)
+          const warningPercent = ((data.warning_checks / total) * 100).toFixed(1)
+          
+          setStatusDistribution([
+            { name: 'Passed', value: parseFloat(passedPercent), color: '#22c55e' },
+            { name: 'Failed', value: parseFloat(failedPercent), color: '#ef4444' },
+            { name: 'Warnings', value: parseFloat(warningPercent), color: '#f59e0b' }
+          ])
+        }
+      }
+
+      // Load common issues for recent activity
+      const issuesResponse = await fetch('/api/real-data/common-issues')
+      if (issuesResponse.ok) {
+        const issuesData = await issuesResponse.json()
+        if (issuesData.status === 'success') {
+          const activities = issuesData.data.common_issues.slice(0, 4).map((issue, index) => ({
+            id: index + 1,
+            type: 'validation_issue',
+            title: issue.description,
+            status: issue.severity === 'critical' ? 'failed' : issue.severity === 'warning' ? 'partial' : 'passed',
+            time: 'Recent validation',
+            score: issue.severity === 'critical' ? 0.3 : issue.severity === 'warning' ? 0.7 : 0.9
+          }))
+          setRecentActivity(activities)
+        }
+      }
+
+    } catch (error) {
+      console.error('Error loading dashboard data:', error)
+      setError('Failed to load dashboard data')
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -124,75 +150,99 @@ const Dashboard = ({ systemStats, ...motionProps }) => {
             Overview of validation system performance and activity
           </p>
         </div>
-        <Button>
+        <Button onClick={loadRealDashboardData} disabled={loading}>
           <BarChart3 className="h-4 w-4 mr-2" />
-          Generate Report
+          {loading ? 'Loading...' : 'Refresh Data'}
         </Button>
       </div>
 
-      {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Validations</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{systemStats.totalValidations.toLocaleString()}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
-              <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-              +12.5% from last month
-            </div>
-          </CardContent>
-        </Card>
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading dashboard data...</p>
+          </div>
+        </div>
+      )}
 
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pass Rate</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{systemStats.passRate}%</div>
-            <div className="flex items-center text-xs text-muted-foreground">
-              <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-              +2.1% from last week
-            </div>
-            <Progress value={systemStats.passRate} className="mt-2" />
-          </CardContent>
-        </Card>
+      {/* Error State */}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            <p className="text-destructive font-medium">Error loading dashboard data</p>
+          </div>
+          <p className="text-sm text-muted-foreground mt-2">{error}</p>
+        </div>
+      )}
 
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Score</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{systemStats.avgScore.toFixed(3)}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
-              <TrendingDown className="h-3 w-3 mr-1 text-red-500" />
-              -0.02 from last week
-            </div>
-            <Progress value={systemStats.avgScore * 100} className="mt-2" />
-          </CardContent>
-        </Card>
+      {/* Dashboard Content - Only show when not loading and no error */}
+      {!loading && !error && (
+        <>
+          {/* Key Metrics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Validations</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{systemStats?.totalValidations?.toLocaleString() || '0'}</div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+                  Real-time data
+                </div>
+              </CardContent>
+            </Card>
 
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Rules</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{systemStats.activeRules}</div>
-            <div className="flex items-center text-xs text-muted-foreground">
-              <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
-              +3 new rules this month
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pass Rate</CardTitle>
+                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{systemStats?.passRate || '0'}%</div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+                  From latest validation
+                </div>
+                <Progress value={systemStats?.passRate || 0} className="mt-2" />
+              </CardContent>
+            </Card>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Average Score</CardTitle>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{systemStats?.avgScore?.toFixed(3) || '0.000'}</div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <Activity className="h-3 w-3 mr-1 text-blue-500" />
+                  Real validation data
+                </div>
+                <Progress value={(systemStats?.avgScore || 0) * 100} className="mt-2" />
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Active Rules</CardTitle>
+                <Shield className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{systemStats?.activeRules || '0'}</div>
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <Shield className="h-3 w-3 mr-1 text-green-500" />
+                  Validation criteria
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Validation Trends */}
         <Card>
           <CardHeader>
@@ -303,6 +353,7 @@ const Dashboard = ({ systemStats, ...motionProps }) => {
           </div>
         </CardContent>
       </Card>
+      )}
     </motion.div>
   )
 }
