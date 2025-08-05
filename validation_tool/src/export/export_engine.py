@@ -146,13 +146,14 @@ class ExportEngine:
             story.append(category_table)
             story.append(Spacer(1, 20))
         
-        # Detailed Issues
-        if 'issues' in validation_data and validation_data['issues']:
+        # Detailed Issues - fix field name mismatch
+        issues_data = validation_data.get('detailed_issues') or validation_data.get('issues', [])
+        if issues_data:
             story.append(Paragraph("Detailed Issues", self.heading_style))
             
-            for i, issue in enumerate(validation_data['issues'][:10], 1):  # Limit to top 10
+            for i, issue in enumerate(issues_data[:10], 1):  # Limit to top 10
                 issue_text = f"""
-                <b>{i}. {issue.get('title', 'Unknown Issue')}</b><br/>
+                <b>{i}. {issue.get('title', issue.get('description', 'Unknown Issue'))}</b><br/>
                 <b>Category:</b> {issue.get('category', 'N/A')}<br/>
                 <b>Severity:</b> {issue.get('severity', 'Medium')}<br/>
                 <b>Description:</b> {issue.get('description', 'No description available')}<br/>
@@ -208,8 +209,10 @@ class ExportEngine:
         if 'category_results' in validation_data:
             self._create_category_sheet(wb, validation_data['category_results'])
         
-        # Issues sheet
-        if 'issues' in validation_data:
+        # Issues sheet - fix field name mismatch
+        if 'detailed_issues' in validation_data:
+            self._create_issues_sheet(wb, validation_data['detailed_issues'])
+        elif 'issues' in validation_data:  # fallback for backward compatibility
             self._create_issues_sheet(wb, validation_data['issues'])
         
         # Recommendations sheet
@@ -271,17 +274,17 @@ class ExportEngine:
             # Header
             writer.writerow(['Issue ID', 'Title', 'Category', 'Severity', 'Description', 'Recommendation'])
             
-            # Issues data
-            if 'issues' in validation_data:
-                for i, issue in enumerate(validation_data['issues'], 1):
-                    writer.writerow([
-                        i,
-                        issue.get('title', 'Unknown Issue'),
-                        issue.get('category', 'N/A'),
-                        issue.get('severity', 'Medium'),
-                        issue.get('description', 'No description'),
-                        issue.get('recommendation', 'No recommendation')
-                    ])
+            # Issues data - fix field name mismatch
+            issues_data = validation_data.get('detailed_issues') or validation_data.get('issues', [])
+            for i, issue in enumerate(issues_data, 1):
+                writer.writerow([
+                    i,
+                    issue.get('title', issue.get('description', 'Unknown Issue')),  # fallback to description if no title
+                    issue.get('category', 'N/A'),
+                    issue.get('severity', 'Medium'),
+                    issue.get('description', 'No description'),
+                    issue.get('recommendation', 'No recommendation')
+                ])
         
         csv_content = output.getvalue()
         output.close()
