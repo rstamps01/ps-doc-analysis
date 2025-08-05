@@ -18,7 +18,7 @@ from integrations.google_sheets import GoogleSheetsIntegration
 try:
     from data.enhanced_validation_criteria import ENHANCED_VALIDATION_CRITERIA
 except ImportError:
-    logger.warning("Enhanced validation criteria not available - using default validation")
+    # Enhanced validation criteria not available - using default validation
     ENHANCED_VALIDATION_CRITERIA = {}
 
 logger = logging.getLogger(__name__)
