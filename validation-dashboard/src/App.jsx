@@ -331,10 +331,18 @@ function App() {
       const response = await fetch(`${API_BASE}/api/google/credentials/status`);
       if (response.ok) {
         const data = await response.json();
-        setCredentialsStatus(data);
+        
+        // Map backend response to frontend state structure
+        setCredentialsStatus({
+          configured: data.status?.credentials_configured || false,
+          project: data.status?.project_id || '',
+          serviceAccount: data.status?.client_email || ''
+        });
       }
     } catch (error) {
       console.error('Error loading credentials status:', error);
+      // Set to not configured on error
+      setCredentialsStatus(prev => ({ ...prev, configured: false }));
     }
   };
 
