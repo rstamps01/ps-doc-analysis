@@ -91,57 +91,84 @@ function App() {
     try {
       console.log('Loading real dashboard data...');
       
-      // Get analytics overview for real metrics
+      // Use real-data API as primary source
+      const response = await fetch(`${API_BASE}/api/real-data/dashboard-stats`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Real data API response:', data);
+        
+        if (data.status === 'success' && data.data) {
+          const realData = data.data;
+          
+          setDashboardStats({
+            totalValidations: realData.total_checks || 0,
+            successRate: realData.total_checks > 0 ? ((realData.passed_checks / realData.total_checks) * 100).toFixed(1) : 0,
+            avgProcessingTime: realData.execution_time || 0,
+            activeRuns: 1 // Default to 1 active project
+          });
+          
+          // Update validation results with real data
+          setValidationResults({
+            overallScore: realData.overall_score || 0,
+            passed: realData.passed_checks || 0,
+            warnings: realData.warning_checks || 0,
+            failed: realData.failed_checks || 0,
+            categories: Object.entries(realData.categories || {}).map(([name, cat]) => ({
+              name,
+              score: cat.score,
+              status: cat.status === 'pass' ? 'passed' : cat.status
+            }))
+          });
+          
+          setError(''); // Clear any previous errors
+          return; // Success, exit early
+        }
+      }
+      
+      // Fallback: Try analytics overview API
+      console.log('Trying analytics overview as fallback...');
       const overviewResponse = await fetch(`${API_BASE}/api/analytics/overview`);
-      let overviewData = null;
       
       if (overviewResponse.ok) {
-        overviewData = await overviewResponse.json();
+        const overviewData = await overviewResponse.json();
         console.log('Analytics overview response:', overviewData);
-      }
-      
-      // Get validation list for active runs count
-      const listResponse = await fetch(`${API_BASE}/api/validation/comprehensive/list`);
-      let activeRuns = 0;
-      
-      if (listResponse.ok) {
-        const listData = await listResponse.json();
-        if (listData.success && listData.validations) {
-          activeRuns = listData.validations.filter(v => v.status !== 'Completed').length;
+        
+        if (overviewData && typeof overviewData === 'object') {
+          setDashboardStats({
+            totalValidations: overviewData.total_validations || 0,
+            successRate: overviewData.success_rate || 0,
+            avgProcessingTime: overviewData.average_processing_time || 0,
+            activeRuns: 1
+          });
+          
+          setError(''); // Clear any previous errors
+          return; // Success, exit early
         }
       }
       
-      // Update dashboard stats with real data
-      if (overviewData) {
-        setDashboardStats({
-          totalValidations: overviewData.total_validations || 0,
-          successRate: overviewData.success_rate || 0,
-          avgProcessingTime: overviewData.average_processing_time || 0,
-          activeRuns: activeRuns
-        });
-      } else {
-        // Fallback to real-data API
-        const response = await fetch(`${API_BASE}/api/real-data/dashboard-stats`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.status === 'success' && data.data) {
-            const realData = data.data;
-            const metrics = realData.system_metrics || {};
-            
-            setDashboardStats({
-              totalValidations: metrics.total_validations?.value || realData.total_checks || 0,
-              successRate: metrics.success_rate?.value || ((realData.passed_checks / realData.total_checks) * 100).toFixed(1) || 0,
-              avgProcessingTime: metrics.avg_processing_time?.value || realData.execution_time || 0,
-              activeRuns: activeRuns
-            });
-          }
-        }
-      }
+      // If both APIs fail, throw error
+      throw new Error('Both real-data and analytics APIs failed');
       
-      setError(''); // Clear any previous errors
     } catch (error) {
       console.error('Error loading real dashboard data:', error);
       setError(`Failed to load dashboard data: ${error.message}`);
+      
+      // Set loading states to show "..." instead of zeros
+      setDashboardStats({
+        totalValidations: null,
+        successRate: null,
+        avgProcessingTime: null,
+        activeRuns: null
+      });
+      
+      setValidationResults({
+        overallScore: null,
+        passed: null,
+        warnings: null,
+        failed: null,
+        categories: []
+      });
     }
   };
 
@@ -199,10 +226,10 @@ function App() {
           const metrics = realData.system_metrics || {};
           
           setDashboardStats({
-            totalValidations: metrics.total_validations?.value || realData.total_checks || 0,
-            successRate: metrics.success_rate?.value || ((realData.passed_checks / realData.total_checks) * 100).toFixed(1) || 0,
-            avgProcessingTime: metrics.avg_processing_time?.value || realData.execution_time || 0,
-            activeRuns: metrics.active_projects?.value || 1
+            totalValidations: realData.total_checks || 0,
+            successRate: realData.total_checks > 0 ? ((realData.passed_checks / realData.total_checks) * 100).toFixed(1) : 0,
+            avgProcessingTime: realData.execution_time || 0,
+            activeRuns: 1 // Default to 1 active project
           });
           
           // Update validation results with real data
@@ -310,66 +337,105 @@ function App() {
     }
   };
 
-  // Real progress polling function
+  // Real progress polling function with improved error handling
   const pollValidationProgress = async (validationId) => {
+    let pollCount = 0;
+    const maxPolls = 300; // 10 minutes at 2-second intervals
+    
     const pollInterval = setInterval(async () => {
+      pollCount++;
+      
       try {
+        console.log(`Polling progress for validation ${validationId} (attempt ${pollCount})`);
         const response = await fetch(`${API_BASE}/api/validation/comprehensive/progress/${validationId}`);
         
         if (response.ok) {
           const data = await response.json();
+          console.log('Progress data received:', data);
           
           if (data.success && data.progress) {
             const progress = data.progress;
             
-            // Update progress state
-            setValidationProgress(progress.progress || 0);
-            setCurrentStep(progress.current_step || 'Processing...');
-            setStepsCompleted(progress.steps_completed || 0);
-            setTotalSteps(progress.total_steps || 0);
+            // Update progress state with real-time data
+            const newProgress = Math.min(progress.progress || 0, 100);
+            const newStep = progress.current_step || 'Processing...';
+            const newStepsCompleted = progress.steps_completed || 0;
+            const newTotalSteps = progress.total_steps || 5;
             
-            // Add activity log entry for step changes
-            if (progress.current_step && progress.current_step !== currentStep) {
-              addActivityLogEntry(progress.current_step, 'info');
+            setValidationProgress(newProgress);
+            setCurrentStep(newStep);
+            setStepsCompleted(newStepsCompleted);
+            setTotalSteps(newTotalSteps);
+            
+            // Add activity log entry for step changes (avoid duplicates)
+            if (newStep && newStep !== currentStep && newStep !== 'Processing...') {
+              addActivityLogEntry(`Step ${newStepsCompleted}/${newTotalSteps}: ${newStep}`, 'info');
             }
             
             // Check if validation is complete
-            if (progress.status === 'Completed' || progress.progress >= 100) {
+            if (progress.status === 'Completed' || newProgress >= 100) {
+              console.log('Validation completed, stopping polling');
               clearInterval(pollInterval);
               setValidationProgress(100);
               setCurrentStep('Validation completed');
-              addActivityLogEntry('Validation completed successfully', 'success');
+              addActivityLogEntry('✅ Validation completed successfully', 'success');
               
               // Load final results
-              loadValidationResults(validationId);
-              setLoading(false);
-              setCurrentValidationId(null);
-            } else if (progress.status === 'Failed') {
+              setTimeout(() => {
+                loadValidationResults(validationId);
+                setLoading(false);
+                setCurrentValidationId(null);
+              }, 1000);
+              
+            } else if (progress.status === 'Failed' || progress.status === 'Error') {
+              console.log('Validation failed, stopping polling');
               clearInterval(pollInterval);
-              addActivityLogEntry('Validation failed', 'error');
+              addActivityLogEntry('❌ Validation failed during processing', 'error');
               setError('Validation failed during processing');
               setLoading(false);
               setCurrentValidationId(null);
             }
+          } else {
+            console.log('No progress data in response:', data);
+            // If no progress data, add a generic update
+            if (pollCount % 5 === 0) { // Every 10 seconds
+              addActivityLogEntry(`Validation in progress... (${pollCount * 2}s elapsed)`, 'info');
+            }
           }
         } else {
-          console.error('Error polling progress:', response.status);
+          console.error('Error polling progress - HTTP status:', response.status);
+          if (response.status === 404) {
+            // Validation might not have started yet, keep polling for a bit
+            if (pollCount > 30) { // After 1 minute, give up
+              clearInterval(pollInterval);
+              setError('Validation not found - it may have failed to start');
+              setLoading(false);
+              setCurrentValidationId(null);
+            }
+          }
         }
       } catch (error) {
         console.error('Error polling validation progress:', error);
-        // Don't clear interval on network errors - keep trying
+        // Add error to activity log but keep polling
+        if (pollCount % 10 === 0) { // Every 20 seconds
+          addActivityLogEntry(`⚠️ Connection issue while checking progress (${error.message})`, 'warning');
+        }
+      }
+      
+      // Stop polling after max attempts
+      if (pollCount >= maxPolls) {
+        clearInterval(pollInterval);
+        if (loading) {
+          setError('Validation timeout - please check results manually');
+          addActivityLogEntry('⏰ Validation timeout after 10 minutes', 'error');
+          setLoading(false);
+          setCurrentValidationId(null);
+        }
       }
     }, 2000); // Poll every 2 seconds
 
-    // Set a timeout to stop polling after 10 minutes
-    setTimeout(() => {
-      clearInterval(pollInterval);
-      if (loading) {
-        setError('Validation timeout - please check results manually');
-        setLoading(false);
-        setCurrentValidationId(null);
-      }
-    }, 600000); // 10 minutes timeout
+    // Store interval ID for cleanup
+    return pollInterval;
   };
 
   // Load validation results function
@@ -472,72 +538,97 @@ function App() {
   const loadAnalyticsData = async () => {
     try {
       console.log('Loading analytics data...');
+      
+      // Try real-data API first for analytics
+      const realDataResponse = await fetch(`${API_BASE}/api/real-data/dashboard-stats`);
+      if (realDataResponse.ok) {
+        const realData = await realDataResponse.json();
+        if (realData.status === 'success' && realData.data) {
+          console.log('Using real data for analytics:', realData.data);
+          
+          // Convert real data to analytics format
+          const data = realData.data;
+          const totalChecks = data.total_checks || 1; // Avoid division by zero
+          
+          setAnalyticsData({
+            summary_cards: {
+              total_validations: totalChecks,
+              average_score: Math.round(data.overall_score || 0),
+              success_rate: Math.round(((data.passed_checks || 0) / totalChecks) * 100),
+              avg_processing_time: Math.round((data.execution_time || 0) * 100) / 100
+            },
+            charts: {
+              category_performance: Object.entries(data.categories || {}).reduce((acc, [name, cat]) => {
+                acc[name] = { 
+                  score: Math.round(cat.score || 0), 
+                  trend: cat.score >= 90 ? 'up' : cat.score >= 75 ? 'stable' : 'down' 
+                };
+                return acc;
+              }, {}),
+              failure_patterns: [
+                'Network configuration validation',
+                'Hardware specifications review', 
+                'Documentation completeness check',
+                'SFDC integration validation',
+                'Technical requirements verification'
+              ]
+            },
+            trends: {
+              score_trend: data.overall_score >= 85 ? 'improving' : data.overall_score >= 70 ? 'stable' : 'declining',
+              processing_time_trend: 'stable'
+            },
+            recommendations: [
+              { text: 'Focus on technical requirements validation', priority: 'high' },
+              { text: 'Improve document completeness checks', priority: 'medium' },
+              { text: 'Enhance SFDC integration validation', priority: 'low' }
+            ]
+          });
+          
+          setError(''); // Clear any previous errors
+          return; // Success, exit early
+        }
+      }
+      
+      // Fallback: Try analytics API
+      console.log('Trying analytics API as fallback...');
       const response = await fetch(`${API_BASE}/api/analytics/dashboard/data`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Analytics data received:', data);
+        console.log('Analytics API data received:', data);
         
         if (data.status === 'success' && data.dashboard_data) {
           setAnalyticsData(data.dashboard_data);
-        } else {
-          throw new Error('Invalid analytics response structure');
-        }
-      } else {
-        // Try to get analytics from real data API
-        const realDataResponse = await fetch(`${API_BASE}/api/real-data/dashboard-stats`);
-        if (realDataResponse.ok) {
-          const realData = await realDataResponse.json();
-          if (realData.status === 'success' && realData.data) {
-            // Convert real data to analytics format
-            const metrics = realData.data.system_metrics || {};
-            const categories = realData.data.categories || {};
-            
-            setAnalyticsData({
-              summary_cards: {
-                total_validations: metrics.total_validations?.value || 1,
-                average_score: realData.data.overall_score || 0,
-                success_rate: metrics.success_rate?.value || 0,
-                avg_processing_time: metrics.avg_processing_time?.value || 0
-              },
-              charts: {
-                category_performance: Object.entries(categories).reduce((acc, [name, cat]) => {
-                  acc[name] = { 
-                    score: cat.score, 
-                    trend: cat.score >= 90 ? 'up' : cat.score >= 75 ? 'stable' : 'down' 
-                  };
-                  return acc;
-                }, {}),
-                failure_patterns: [
-                  'Missing VAST cluster configuration details',
-                  'Incomplete network diagram specifications', 
-                  'Power requirements calculation errors',
-                  'Hardware serial numbers not validated',
-                  'IP address ranges need verification'
-                ]
-              },
-              trends: {
-                score_trend: realData.data.overall_score >= 85 ? 'improving' : 'stable',
-                processing_time_trend: 'stable'
-              },
-              recommendations: [
-                { text: 'Focus on technical requirements validation', priority: 'high' },
-                { text: 'Improve document completeness checks', priority: 'medium' },
-                { text: 'Enhance SFDC integration validation', priority: 'low' }
-              ]
-            });
-          } else {
-            throw new Error('No analytics data available');
-          }
-        } else {
-          throw new Error('Analytics API not available');
+          setError(''); // Clear any previous errors
+          return; // Success, exit early
         }
       }
+      
+      // If both APIs fail, set empty state
+      throw new Error('Both real-data and analytics APIs failed');
+      
     } catch (error) {
       console.error('Error loading analytics data:', error);
       setError(`Failed to load analytics data: ${error.message}`);
-      // Set empty analytics data instead of fallback
-      setAnalyticsData(null);
+      
+      // Set empty analytics data to show loading states
+      setAnalyticsData({
+        summary_cards: {
+          total_validations: 0,
+          average_score: 0,
+          success_rate: 0,
+          avg_processing_time: 0
+        },
+        charts: {
+          category_performance: {},
+          failure_patterns: []
+        },
+        trends: {
+          score_trend: 'stable',
+          processing_time_trend: 'stable'
+        },
+        recommendations: []
+      });
     }
   };
 
