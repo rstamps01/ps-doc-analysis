@@ -10,11 +10,13 @@ ENV PYTHONUNBUFFERED=1
 ENV FLASK_APP=src/main.py
 ENV FLASK_ENV=production
 
-# Install system dependencies
+# Install system dependencies including debugging tools
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     curl \
+    bash \
+    vim \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
