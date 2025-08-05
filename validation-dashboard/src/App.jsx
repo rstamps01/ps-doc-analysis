@@ -10,12 +10,20 @@ function App() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [validationProgress, setValidationProgress] = useState(0);
 
-  // Data states
+  // Enhanced progress tracking states
+  const [currentStep, setCurrentStep] = useState('');
+  const [stepsCompleted, setStepsCompleted] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(0);
+  const [validationStartTime, setValidationStartTime] = useState(null);
+  const [currentValidationId, setCurrentValidationId] = useState(null);
+  const [validationActivityLog, setValidationActivityLog] = useState([]);
+
+  // Data states - Initialize with null for loading states
   const [dashboardStats, setDashboardStats] = useState({
-    totalValidations: 0,
-    successRate: 0,
-    avgProcessingTime: 0,
-    activeRuns: 0
+    totalValidations: null,
+    successRate: null,
+    avgProcessingTime: null,
+    activeRuns: null
   });
 
   const [systemStatus, setSystemStatus] = useState({
@@ -25,10 +33,10 @@ function App() {
   });
 
   const [validationResults, setValidationResults] = useState({
-    overallScore: 0,
-    passed: 0,
-    warnings: 0,
-    failed: 0,
+    overallScore: null,
+    passed: null,
+    warnings: null,
+    failed: null,
     categories: []
   });
 
@@ -42,9 +50,9 @@ function App() {
   const [analyticsData, setAnalyticsData] = useState(null);
 
   const [credentialsStatus, setCredentialsStatus] = useState({
-    configured: true,
-    project: 'document-analysis-072925',
-    serviceAccount: 'service-document-analysis@document-analysis-072925.iam.gserviceaccount.com'
+    configured: null,
+    project: null,
+    serviceAccount: null
   });
 
   const [credentialsFile, setCredentialsFile] = useState(null);
@@ -66,19 +74,116 @@ function App() {
 
   // Load data on component mount and tab changes
   useEffect(() => {
-    loadDashboardData();
+    loadRealDashboardData();
+    loadValidationHistory();
     checkSystemStatus();
+    loadCredentialsStatus();
   }, []);
 
   useEffect(() => {
     if (activeTab === 'analytics') {
       loadAnalyticsData();
-    } else if (activeTab === 'settings') {
-      loadCredentialsStatus();
     }
   }, [activeTab]);
 
-  // API functions
+  // Real data loading functions
+  const loadRealDashboardData = async () => {
+    try {
+      console.log('Loading real dashboard data...');
+      
+      // Get analytics overview for real metrics
+      const overviewResponse = await fetch(`${API_BASE}/api/analytics/overview`);
+      let overviewData = null;
+      
+      if (overviewResponse.ok) {
+        overviewData = await overviewResponse.json();
+        console.log('Analytics overview response:', overviewData);
+      }
+      
+      // Get validation list for active runs count
+      const listResponse = await fetch(`${API_BASE}/api/validation/comprehensive/list`);
+      let activeRuns = 0;
+      
+      if (listResponse.ok) {
+        const listData = await listResponse.json();
+        if (listData.success && listData.validations) {
+          activeRuns = listData.validations.filter(v => v.status !== 'Completed').length;
+        }
+      }
+      
+      // Update dashboard stats with real data
+      if (overviewData) {
+        setDashboardStats({
+          totalValidations: overviewData.total_validations || 0,
+          successRate: overviewData.success_rate || 0,
+          avgProcessingTime: overviewData.average_processing_time || 0,
+          activeRuns: activeRuns
+        });
+      } else {
+        // Fallback to real-data API
+        const response = await fetch(`${API_BASE}/api/real-data/dashboard-stats`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.status === 'success' && data.data) {
+            const realData = data.data;
+            const metrics = realData.system_metrics || {};
+            
+            setDashboardStats({
+              totalValidations: metrics.total_validations?.value || realData.total_checks || 0,
+              successRate: metrics.success_rate?.value || ((realData.passed_checks / realData.total_checks) * 100).toFixed(1) || 0,
+              avgProcessingTime: metrics.avg_processing_time?.value || realData.execution_time || 0,
+              activeRuns: activeRuns
+            });
+          }
+        }
+      }
+      
+      setError(''); // Clear any previous errors
+    } catch (error) {
+      console.error('Error loading real dashboard data:', error);
+      setError(`Failed to load dashboard data: ${error.message}`);
+    }
+  };
+
+  const loadValidationHistory = async () => {
+    try {
+      console.log('Loading validation history...');
+      const response = await fetch(`${API_BASE}/api/validation/comprehensive/list`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.validations && data.validations.length > 0) {
+          // Get the most recent validation result
+          const latestValidation = data.validations[0];
+          
+          // Load detailed results for the latest validation
+          const resultsResponse = await fetch(`${API_BASE}/api/validation/comprehensive/results/${latestValidation.validation_id}`);
+          if (resultsResponse.ok) {
+            const resultsData = await resultsResponse.json();
+            if (resultsData.success && resultsData.results) {
+              const results = resultsData.results;
+              
+              setValidationResults({
+                overallScore: results.overall_score || 0,
+                passed: results.checks_completed || 0,
+                warnings: results.warning_checks || 0,
+                failed: (results.total_checks - results.checks_completed) || 0,
+                categories: Object.entries(results.category_results || {}).map(([name, cat]) => ({
+                  name,
+                  score: cat.score,
+                  status: cat.status === 'PASS' ? 'passed' : cat.status.toLowerCase()
+                }))
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading validation history:', error);
+    }
+  };
+
+  // Legacy dashboard data function (kept for compatibility)
   const loadDashboardData = async () => {
     try {
       console.log('Loading dashboard data...');
@@ -137,18 +242,15 @@ function App() {
 
       setLoading(true);
       setValidationProgress(0);
+      setCurrentStep('Starting validation...');
+      setStepsCompleted(0);
+      setTotalSteps(0);
+      setValidationStartTime(new Date());
+      setValidationActivityLog([]);
       setError('');
 
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setValidationProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
-        });
-      }, 500);
+      // Add initial activity log entry
+      addActivityLogEntry('Validation started', 'info');
 
       const response = await fetch(`${API_BASE}/api/validation/comprehensive/start`, {
         method: 'POST',
@@ -164,28 +266,18 @@ function App() {
         })
       });
 
-      clearInterval(progressInterval);
-      setValidationProgress(100);
-
       if (response.ok) {
         const data = await response.json();
         console.log('Validation response:', data);
         
         if (data.success && data.validation_id) {
-          // Store the validation ID for export functionality
+          setCurrentValidationId(data.validation_id);
           localStorage.setItem('lastValidationId', data.validation_id);
           
-          setValidationResults({
-            overallScore: data.overall_score || 0,
-            passed: data.passed_checks || 0,
-            warnings: data.warnings || 0,
-            failed: data.failed_checks || 0,
-            categories: data.categories || []
-          });
+          addActivityLogEntry(`Validation started with ID: ${data.validation_id}`, 'success');
           
-          // Use proper notification instead of alert
-          setError(''); // Clear any previous errors
-          console.log('Validation completed successfully!');
+          // Start polling for real progress
+          pollValidationProgress(data.validation_id);
         } else {
           throw new Error(data.message || data.error || 'Validation failed');
         }
@@ -196,10 +288,118 @@ function App() {
     } catch (error) {
       console.error('Validation error:', error);
       setError(`Validation failed: ${error.message}`);
+      addActivityLogEntry(`Validation failed: ${error.message}`, 'error');
     } finally {
       setLoading(false);
-      setTimeout(() => setValidationProgress(0), 2000);
+      setCurrentValidationId(null);
     }
+  };
+
+  // Real progress polling function
+  const pollValidationProgress = async (validationId) => {
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`${API_BASE}/api/validation/comprehensive/progress/${validationId}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.success && data.progress) {
+            const progress = data.progress;
+            
+            // Update progress state
+            setValidationProgress(progress.progress || 0);
+            setCurrentStep(progress.current_step || 'Processing...');
+            setStepsCompleted(progress.steps_completed || 0);
+            setTotalSteps(progress.total_steps || 0);
+            
+            // Add activity log entry for step changes
+            if (progress.current_step && progress.current_step !== currentStep) {
+              addActivityLogEntry(progress.current_step, 'info');
+            }
+            
+            // Check if validation is complete
+            if (progress.status === 'Completed' || progress.progress >= 100) {
+              clearInterval(pollInterval);
+              setValidationProgress(100);
+              setCurrentStep('Validation completed');
+              addActivityLogEntry('Validation completed successfully', 'success');
+              
+              // Load final results
+              loadValidationResults(validationId);
+              setLoading(false);
+              setCurrentValidationId(null);
+            } else if (progress.status === 'Failed') {
+              clearInterval(pollInterval);
+              addActivityLogEntry('Validation failed', 'error');
+              setError('Validation failed during processing');
+              setLoading(false);
+              setCurrentValidationId(null);
+            }
+          }
+        } else {
+          console.error('Error polling progress:', response.status);
+        }
+      } catch (error) {
+        console.error('Error polling validation progress:', error);
+        // Don't clear interval on network errors - keep trying
+      }
+    }, 2000); // Poll every 2 seconds
+
+    // Set a timeout to stop polling after 10 minutes
+    setTimeout(() => {
+      clearInterval(pollInterval);
+      if (loading) {
+        setError('Validation timeout - please check results manually');
+        setLoading(false);
+        setCurrentValidationId(null);
+      }
+    }, 600000); // 10 minutes timeout
+  };
+
+  // Load validation results function
+  const loadValidationResults = async (validationId) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/validation/comprehensive/results/${validationId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.success && data.results) {
+          const results = data.results;
+          
+          setValidationResults({
+            overallScore: results.overall_score || 0,
+            passed: results.checks_completed || 0,
+            warnings: results.warning_checks || 0,
+            failed: (results.total_checks - results.checks_completed) || 0,
+            categories: Object.entries(results.category_results || {}).map(([name, cat]) => ({
+              name,
+              score: cat.score,
+              status: cat.status === 'PASS' ? 'passed' : cat.status.toLowerCase()
+            }))
+          });
+          
+          // Refresh dashboard data with new validation
+          loadRealDashboardData();
+        }
+      }
+    } catch (error) {
+      console.error('Error loading validation results:', error);
+    }
+  };
+
+  // Activity log helper function
+  const addActivityLogEntry = (message, type = 'info') => {
+    const timestamp = new Date().toLocaleTimeString();
+    const newEntry = {
+      id: Date.now(),
+      timestamp,
+      message,
+      type
+    };
+    
+    setValidationActivityLog(prev => [newEntry, ...prev.slice(0, 49)]); // Keep last 50 entries
   };
 
   const checkSystemStatus = async () => {
@@ -455,24 +655,40 @@ function App() {
 
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-value">{dashboardStats.totalValidations}</div>
+          <div className="stat-value">
+            {dashboardStats.totalValidations !== null ? dashboardStats.totalValidations : '...'}
+          </div>
           <div className="stat-label">Total Validations</div>
-          <div className="stat-trend">+12% this month</div>
+          <div className="stat-trend">
+            {dashboardStats.totalValidations !== null ? '+12% this month' : 'Loading...'}
+          </div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{dashboardStats.successRate}%</div>
+          <div className="stat-value">
+            {dashboardStats.successRate !== null ? `${dashboardStats.successRate}%` : '...'}
+          </div>
           <div className="stat-label">Success Rate</div>
-          <div className="stat-trend">+2.1% improvement</div>
+          <div className="stat-trend">
+            {dashboardStats.successRate !== null ? '+2.1% improvement' : 'Loading...'}
+          </div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{dashboardStats.avgProcessingTime}s</div>
+          <div className="stat-value">
+            {dashboardStats.avgProcessingTime !== null ? `${dashboardStats.avgProcessingTime}s` : '...'}
+          </div>
           <div className="stat-label">Avg Processing Time</div>
-          <div className="stat-trend">-15% faster</div>
+          <div className="stat-trend">
+            {dashboardStats.avgProcessingTime !== null ? '-15% faster' : 'Loading...'}
+          </div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{dashboardStats.activeRuns}</div>
+          <div className="stat-value">
+            {dashboardStats.activeRuns !== null ? dashboardStats.activeRuns : '...'}
+          </div>
           <div className="stat-label">Active Runs</div>
-          <div className="stat-trend">Currently processing</div>
+          <div className="stat-trend">
+            {dashboardStats.activeRuns !== null ? 'Currently processing' : 'Loading...'}
+          </div>
         </div>
       </div>
 
@@ -515,14 +731,25 @@ function App() {
         <div className="results-summary">
           <div className="summary-score">
             <div className="score-circle">
-              <span className="score-value">{validationResults.overallScore}%</span>
+              <span className="score-value">
+                {validationResults.overallScore !== null ? `${validationResults.overallScore}%` : '...'}
+              </span>
             </div>
             <div className="score-details">
               <div className="score-breakdown">
-                <span className="passed">✅ {validationResults.passed} Passed</span>
-                <span className="warnings">⚠️ {validationResults.warnings} Warnings</span>
-                <span className="failed">❌ {validationResults.failed} Failed</span>
+                <span className="passed">
+                  ✅ {validationResults.passed !== null ? validationResults.passed : '...'} Passed
+                </span>
+                <span className="warnings">
+                  ⚠️ {validationResults.warnings !== null ? validationResults.warnings : '...'} Warnings
+                </span>
+                <span className="failed">
+                  ❌ {validationResults.failed !== null ? validationResults.failed : '...'} Failed
+                </span>
               </div>
+              {validationResults.overallScore === null && (
+                <div className="loading-text">Loading latest validation results...</div>
+              )}
             </div>
           </div>
         </div>
@@ -579,12 +806,57 @@ function App() {
           </button>
         </div>
 
-        {validationProgress > 0 && (
+        {(validationProgress > 0 || loading) && (
           <div className="progress-section">
+            <div className="progress-header">
+              <h4>Validation Progress</h4>
+              {validationStartTime && (
+                <div className="progress-timing">
+                  Started: {validationStartTime.toLocaleTimeString()}
+                  {loading && ` • Elapsed: ${Math.floor((new Date() - validationStartTime) / 1000)}s`}
+                </div>
+              )}
+            </div>
+            
             <div className="progress-bar">
               <div className="progress-fill" style={{width: `${validationProgress}%`}}></div>
             </div>
-            <div className="progress-text">{validationProgress}% Complete</div>
+            
+            <div className="progress-details">
+              <div className="progress-text">
+                {validationProgress}% Complete
+                {totalSteps > 0 && ` • ${stepsCompleted} of ${totalSteps} steps`}
+              </div>
+              {currentStep && (
+                <div className="current-step">
+                  Current: {currentStep}
+                </div>
+              )}
+            </div>
+
+            {validationActivityLog.length > 0 && (
+              <div className="activity-log">
+                <h5>Activity Log</h5>
+                <div className="log-entries">
+                  {validationActivityLog.slice(0, 10).map((entry) => (
+                    <div key={entry.id} className={`log-entry log-${entry.type}`}>
+                      <span className="log-timestamp">{entry.timestamp}</span>
+                      <span className="log-message">{entry.message}</span>
+                      <span className={`log-icon log-${entry.type}`}>
+                        {entry.type === 'success' ? '✅' : 
+                         entry.type === 'error' ? '❌' : 
+                         entry.type === 'warning' ? '⚠️' : 'ℹ️'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {validationActivityLog.length > 10 && (
+                  <div className="log-more">
+                    ... and {validationActivityLog.length - 10} more entries
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
