@@ -24,9 +24,17 @@ except ImportError as e:
     logger.error(f"Critical import error: {e}. Google integration features will not work.")
     GOOGLE_INTEGRATIONS_AVAILABLE = False
 
-@google_integration.route('/api/google/test-connection', methods=['GET'])
+@google_integration.route('/api/google/test-connection', methods=['GET', 'OPTIONS'])
 def test_google_connections():
     """Test Google Drive and Sheets API connections"""
+    # Handle CORS preflight request
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+        
     if not GOOGLE_INTEGRATIONS_AVAILABLE:
         return jsonify({
             'success': False,
@@ -303,9 +311,17 @@ def _perform_cross_validation(part1_results: dict, part2_results: dict) -> dict:
     return cross_validation
 
 
-@google_integration.route('/api/google/credentials/status', methods=['GET'])
+@google_integration.route('/api/google/credentials/status', methods=['GET', 'OPTIONS'])
 def get_credentials_status():
     """Get the current status of Google API credentials"""
+    # Handle CORS preflight request
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,X-Requested-With')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+        
     try:
         # Use the same path as upload function
         credentials_path = "/app/credentials/google-service-account.json"
