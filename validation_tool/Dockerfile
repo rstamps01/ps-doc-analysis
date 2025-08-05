@@ -37,7 +37,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN chmod -R 755 /app
 
 # Fix Python path to include src directory for proper module imports
-ENV PYTHONPATH="/app/src:$PYTHONPATH"
+ENV PYTHONPATH="/app/src"
 
 # Expose port
 EXPOSE 5001
