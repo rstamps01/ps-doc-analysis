@@ -27,6 +27,14 @@ def export_validation_pdf(validation_id: str):
             # Generate sample data for testing
             validation_data = generate_sample_validation_data(validation_id)
         
+        # Ensure validation_data is a dictionary
+        if not isinstance(validation_data, dict):
+            logger.error(f"PDF export error: validation_data is not a dict, got {type(validation_data)}: {validation_data}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid validation data format'
+            }), 500
+        
         # Generate PDF
         pdf_bytes = export_engine.export_validation_results_pdf(validation_data)
         
@@ -54,6 +62,14 @@ def export_validation_excel(validation_id: str):
             # Generate sample data for testing
             validation_data = generate_sample_validation_data(validation_id)
         
+        # Ensure validation_data is a dictionary
+        if not isinstance(validation_data, dict):
+            logger.error(f"Excel export error: validation_data is not a dict, got {type(validation_data)}: {validation_data}")
+            return jsonify({
+                'status': 'error',
+                'message': 'Invalid validation data format'
+            }), 500
+        
         # Generate Excel
         excel_bytes = export_engine.export_validation_results_excel(validation_data)
         
@@ -69,6 +85,12 @@ def export_validation_excel(validation_id: str):
             'status': 'error',
             'message': f'Failed to export Excel: {str(e)}'
         }), 500
+
+@export_bp.route('/validation/xlsx/<validation_id>', methods=['GET'])
+def export_validation_xlsx(validation_id: str):
+    """Export validation results as Excel (xlsx endpoint for frontend compatibility)"""
+    # Redirect to the excel endpoint functionality
+    return export_validation_excel(validation_id)
 
 @export_bp.route('/validation/csv/<validation_id>', methods=['GET'])
 def export_validation_csv(validation_id: str):
